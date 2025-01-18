@@ -1,0 +1,121 @@
+{
+  "name": "local-snapshots",
+  "displayName": "Local Snapshots",
+  "description": "Take and Restore snapshots of your workspace files.",
+  "version": "0.0.1",
+  "publisher": "vscode-local-snapshots",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "SCM"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "local-snapshots-sidebar",
+          "title": "Local Snapshots",
+          "icon": "resources/snapshot.svg"
+        }
+      ]
+    },
+    "views": {
+      "local-snapshots-sidebar": [
+        {
+          "id": "local-snapshots-list",
+          "name": "Snapshots",
+          "type": "webview",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "local-snapshots-list",
+        "contents": "No snapshots yet. [Take a snapshot](command:local-snapshots.takeSnapshot)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "local-snapshots.takeSnapshot",
+        "title": "Take Named Snapshot",
+        "category": "Local Snapshots",
+        "icon": "$(add)"
+      },
+      {
+        "command": "local-snapshots.quickSnapshot",
+        "title": "Quick Snapshot",
+        "category": "Local Snapshots",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "local-snapshots.restoreSnapshot",
+        "title": "Restore Snapshot",
+        "category": "Local Snapshots"
+      },
+      {
+        "command": "local-snapshots.restoreFile",
+        "title": "Restore File from Snapshot",
+        "category": "Local Snapshots"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "local-snapshots.takeSnapshot",
+          "when": "view == local-snapshots-list",
+          "group": "navigation@1"
+        },
+        {
+          "command": "local-snapshots.quickSnapshot",
+          "when": "view == local-snapshots-list",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "local-snapshots.quickSnapshot",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      },
+      {
+        "command": "local-snapshots.restoreSnapshot",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
+    "eslint": "^9.16.0",
+    "typescript": "^5.7.2",
+    "ts-loader": "^9.5.1",
+    "webpack": "^5.95.0",
+    "webpack-cli": "^5.1.4",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1"
+  }
+}
+
