@@ -9,6 +9,10 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log('==============================================');
 
 	const snapshotManager = new SnapshotManager(context);
+
+	// Make sure to dispose the snapshot manager when deactivating
+	context.subscriptions.push({ dispose: () => snapshotManager.dispose() });
+
 	const webviewProvider = new SnapshotWebviewProvider(
 		context.extensionUri,
 		async () => {

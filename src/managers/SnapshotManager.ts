@@ -7,9 +7,150 @@ export class SnapshotManager {
 	private context: vscode.ExtensionContext;
 	private readonly SNAPSHOTS_KEY = 'snapshots';
 	private webviewProvider?: SnapshotWebviewProvider;
+	private disposables: vscode.Disposable[] = [];
+	private documentStates: Map<string, { content: string, version: number }> = new Map();
+	private pendingChanges: Set<string> = new Set();
 
 	constructor(context: vscode.ExtensionContext) {
 		this.context = context;
+		this.setupPreSaveListener();
+	}
+
+	private setupPreSaveListener() {
+		// Track document changes
+		const changeListener = vscode.workspace.onDidChangeTextDocument(event => {
+			const key = event.document.uri.toString();
+			
+			// Mark this document as having pending changes
+			this.pendingChanges.add(key);
+			
+			console.log(`Change detected in ${event.document.fileName}`);
+		});
+
+		// Listen for the will save event
+		const willSaveListener = vscode.workspace.onWillSaveTextDocument(async event => {
+			const document = event.document;
+			const key = document.uri.toString();
+
+			console.log(`Will save triggered for ${document.fileName}`);
+			console.log(`Has pending changes: ${this.pendingChanges.has(key)}`);
+
+			// Only create snapshot if we have pending changes
+			if (this.pendingChanges.has(key)) {
+				const currentState = this.documentStates.get(key);
+				if (currentState) {
+					console.log('Creating snapshot before save');
+					await this.handlePreSaveSnapshot(document, currentState.content);
+				}
+				// Clear the pending changes flag
+				this.pendingChanges.delete(key);
+			} else {
+				console.log('No snapshot needed - no pending changes');
+			}
+
+			// Update the stored state with current content
+			this.documentStates.set(key, {
+				content: document.getText(),
+				version: document.version
+			});
+		});
+
+		// Initial state for all open documents
+		vscode.workspace.textDocuments.forEach(doc => {
+			console.log(`Initializing state for ${doc.fileName}`);
+			this.documentStates.set(doc.uri.toString(), {
+				content: doc.getText(),
+				version: doc.version
+			});
+		});
+
+		// Track newly opened documents
+		const openListener = vscode.workspace.onDidOpenTextDocument(doc => {
+			console.log(`Document opened: ${doc.fileName}`);
+			this.documentStates.set(doc.uri.toString(), {
+				content: doc.getText(),
+				version: doc.version
+			});
+		});
+
+		// Clean up closed documents
+		const closeListener = vscode.workspace.onDidCloseTextDocument(doc => {
+			console.log(`Document closed: ${doc.fileName}`);
+			this.documentStates.delete(doc.uri.toString());
+			this.pendingChanges.delete(doc.uri.toString());
+		});
+
+		this.disposables.push(willSaveListener, changeListener, openListener, closeListener);
+	}
+
+	private async handlePreSaveSnapshot(document: vscode.TextDocument, previousContent: string): Promise<void> {
+		try {
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			if (!workspaceFolders) {
+				console.log('No workspace folders found');
+				return;
+			}
+
+			// Only take snapshots of files in the workspace
+			const workspaceFolder = workspaceFolders[0];
+			if (!document.uri.fsPath.startsWith(workspaceFolder.uri.fsPath)) {
+				console.log('File not in workspace');
+				return;
+			}
+
+			const relativePath = path.relative(workspaceFolder.uri.fsPath, document.uri.fsPath);
+			
+			// Skip files we don't want to snapshot
+			if (this.shouldSkipFile(relativePath)) {
+				console.log(`Skipping file: ${relativePath}`);
+				return;
+			}
+
+			console.log(`Creating snapshot for ${relativePath}`);
+
+			const projectName = this.getProjectName();
+			const timestamp = this.formatTimestamp();
+			const snapshotName = `${projectName} - Pre-save ${timestamp}`;
+
+			// Create a snapshot with the previous content
+			const snapshot: Snapshot = {
+				name: snapshotName,
+				timestamp: Date.now(),
+				files: [{
+					content: previousContent,
+					relativePath
+				}]
+			};
+
+			const snapshots = this.getSnapshots();
+			snapshots.push(snapshot);
+			await this.saveSnapshots(snapshots);
+
+			console.log('Snapshot created successfully');
+
+			if (this.webviewProvider) {
+				this.webviewProvider.refreshList();
+			}
+		} catch (error) {
+			console.error('Failed to create pre-save snapshot:', error);
+		}
+	}
+
+	private shouldSkipFile(relativePath: string): boolean {
+		const skipPatterns = [
+			/node_modules/,
+			/\.git/,
+			/dist/,
+			/out/,
+			/\.vs/,
+			/\.vscode/,
+			/\.DS_Store/,
+			/Thumbs\.db/,
+			/\.log$/,
+			/package-lock\.json$/
+		];
+
+		return skipPatterns.some(pattern => pattern.test(relativePath));
 	}
 
 	setWebviewProvider(provider: SnapshotWebviewProvider) {
@@ -77,7 +218,7 @@ export class SnapshotManager {
 
 		const snapshotName = name 
 			? `${projectName} - ${name}`
-			: `${projectName} - ${timestamp}`;
+			: `${projectName} - Manual ${timestamp}`;
 
 		const files: FileSnapshot[] = [];
 
@@ -92,10 +233,12 @@ export class SnapshotManager {
 				try {
 					const document = await vscode.workspace.openTextDocument(uri);
 					const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
-					files.push({
-						content: document.getText(),
-						relativePath
-					});
+					if (!this.shouldSkipFile(relativePath)) {
+						files.push({
+							content: document.getText(),
+							relativePath
+						});
+					}
 				} catch (error) {
 					console.error(`Failed to read file: ${uri.fsPath}`, error);
 				}
@@ -205,5 +348,9 @@ export class SnapshotManager {
 				Buffer.from(fileSnapshot.content, 'utf8')
 			);
 		}
+	}
+
+	dispose() {
+		this.disposables.forEach(d => d.dispose());
 	}
 } 
