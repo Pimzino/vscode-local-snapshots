@@ -108,9 +108,8 @@ export class SnapshotManager {
 
 			console.log(`Creating snapshot for ${relativePath}`);
 
-			const projectName = this.getProjectName();
-			const timestamp = this.formatTimestamp();
-			const snapshotName = `${projectName} - Pre-save ${timestamp}`;
+			// Use just the file name for the snapshot name
+			const snapshotName = path.basename(document.fileName);
 
 			// Create a snapshot with the previous content
 			const snapshot: Snapshot = {
@@ -217,8 +216,8 @@ export class SnapshotManager {
 		const timestamp = this.formatTimestamp();
 
 		const snapshotName = name 
-			? `${projectName} - ${name}`
-			: `${projectName} - Manual ${timestamp}`;
+			? `${projectName} - ${name}`  // User-provided name
+			: `Quick Snapshot - ${timestamp}`;  // Quick snapshot
 
 		const files: FileSnapshot[] = [];
 
@@ -256,9 +255,15 @@ export class SnapshotManager {
 		await this.saveSnapshots(snapshots);
 	}
 
-	async restoreSnapshot(snapshotName: string, selectedFiles?: string[]): Promise<void> {
+	async deleteSnapshot(snapshotName: string, timestamp: number): Promise<void> {
 		const snapshots = this.getSnapshots();
-		const snapshot = snapshots.find(s => s.name === snapshotName);
+		const updatedSnapshots = snapshots.filter(s => !(s.name === snapshotName && s.timestamp === timestamp));
+		await this.saveSnapshots(updatedSnapshots);
+	}
+
+	async restoreSnapshot(snapshotName: string, timestamp: number, selectedFiles?: string[]): Promise<void> {
+		const snapshots = this.getSnapshots();
+		const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
 		
 		if (!snapshot) {
 			throw new Error('Snapshot not found');
@@ -292,61 +297,47 @@ export class SnapshotManager {
 		}
 	}
 
-	async getSnapshotFiles(snapshotName: string): Promise<string[]> {
+	async getSnapshotFiles(snapshotName: string, timestamp: number): Promise<string[]> {
 		const snapshots = this.getSnapshots();
-		const snapshot = snapshots.find(s => s.name === snapshotName);
+		const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
 		if (!snapshot) {
 			throw new Error('Snapshot not found');
 		}
 		return snapshot.files.map(f => f.relativePath);
 	}
 
-	async deleteSnapshot(snapshotName: string): Promise<void> {
+	async showDiff(snapshotName: string, timestamp: number): Promise<void> {
 		const snapshots = this.getSnapshots();
-		const updatedSnapshots = snapshots.filter(s => s.name !== snapshotName);
-		await this.saveSnapshots(updatedSnapshots);
-	}
-
-	async restoreFile(filePath: string): Promise<void> {
-		const snapshots = this.getSnapshots();
-		if (snapshots.length === 0) {
-			throw new Error('No snapshots available');
-		}
-
-		const items = snapshots.map(s => ({
-			label: s.name,
-			description: new Date(s.timestamp).toLocaleString(),
-			snapshot: s
-		}));
-
-		const selected = await vscode.window.showQuickPick(items, {
-			placeHolder: 'Select a snapshot to restore from'
-		});
-
-		if (!selected) {
-			return;
-		}
-
-		const relativePath = filePath;
-		const fileSnapshot = selected.snapshot.files.find(f => f.relativePath === relativePath);
+		const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
 		
-		if (!fileSnapshot) {
-			throw new Error('File not found in snapshot');
+		if (!snapshot || !snapshot.files.length) {
+			throw new Error('Snapshot not found or empty');
 		}
 
+		const file = snapshot.files[0]; // For pre-save snapshots, we only have one file
 		const workspaceFolders = vscode.workspace.workspaceFolders;
+		
 		if (!workspaceFolders) {
 			throw new Error('No workspace folder is open');
 		}
 
-		// Use workspace.fs API directly instead of WorkspaceEdit
-		for (const folder of workspaceFolders) {
-			const fullPath = path.join(folder.uri.fsPath, relativePath);
-			const uri = vscode.Uri.file(fullPath);
-			await vscode.workspace.fs.writeFile(
-				uri,
-				Buffer.from(fileSnapshot.content, 'utf8')
-			);
+		// Create URIs for the diff editor
+		const snapshotUri = vscode.Uri.parse(`local-snapshots:${file.relativePath}.snapshot`);
+		const currentUri = vscode.Uri.file(path.join(workspaceFolders[0].uri.fsPath, file.relativePath));
+
+		// Register content provider for the snapshot version
+		const registration = vscode.workspace.registerTextDocumentContentProvider('local-snapshots', {
+			provideTextDocumentContent: (uri: vscode.Uri): string => {
+				return file.content;
+			}
+		});
+
+		// Show diff and dispose the provider when done
+		try {
+			const title = `${path.basename(file.relativePath)} (Working) ↔ ${snapshotName}`;
+			await vscode.commands.executeCommand('vscode.diff', snapshotUri, currentUri, title);
+		} finally {
+			registration.dispose();
 		}
 	}
 

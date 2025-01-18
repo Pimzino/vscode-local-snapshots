@@ -25,19 +25,20 @@ export function activate(context: vscode.ExtensionContext) {
 				webviewProvider.refreshList();
 			}
 		},
-		async (snapshotName: string, selectedFiles?: string[]) => {
-			await snapshotManager.restoreSnapshot(snapshotName, selectedFiles);
+		async (snapshotName: string, timestamp: number, selectedFiles?: string[]) => {
+			await snapshotManager.restoreSnapshot(snapshotName, timestamp, selectedFiles);
 			vscode.window.showInformationMessage(
 				`Restored ${selectedFiles ? selectedFiles.length : 'all'} files from snapshot: ${snapshotName}`
 			);
 		},
-		async (snapshotName: string) => {
-			await snapshotManager.deleteSnapshot(snapshotName);
+		async (snapshotName: string, timestamp: number) => {
+			await snapshotManager.deleteSnapshot(snapshotName, timestamp);
 			vscode.window.showInformationMessage(`Deleted snapshot: ${snapshotName}`);
 			webviewProvider.refreshList();
 		},
 		async () => snapshotManager.getSnapshots(),
-		async (name: string) => snapshotManager.getSnapshotFiles(name)
+		async (name: string, timestamp: number) => snapshotManager.getSnapshotFiles(name, timestamp),
+		async (name: string, timestamp: number) => snapshotManager.showDiff(name, timestamp)
 	);
 
 	snapshotManager.setWebviewProvider(webviewProvider);

@@ -29,7 +29,8 @@ export function registerSnapshotCommands(
 			const snapshots = snapshotManager.getSnapshots();
 			const items = snapshots.map(s => ({
 				label: s.name,
-				description: new Date(s.timestamp).toLocaleString()
+				description: new Date(s.timestamp).toLocaleString(),
+				timestamp: s.timestamp
 			}));
 			
 			const selectedSnapshot = await vscode.window.showQuickPick(items, {
@@ -54,46 +55,24 @@ export function registerSnapshotCommands(
 			}
 
 			if (choice.value === 'all') {
-				await snapshotManager.restoreSnapshot(selectedSnapshot.label);
+				await snapshotManager.restoreSnapshot(selectedSnapshot.label, selectedSnapshot.timestamp);
 				vscode.window.showInformationMessage(
 					`Restored all files from snapshot: ${selectedSnapshot.label}`
 				);
 			} else {
-				const files = await snapshotManager.getSnapshotFiles(selectedSnapshot.label);
+				const files = await snapshotManager.getSnapshotFiles(selectedSnapshot.label, selectedSnapshot.timestamp);
 				const selectedFiles = await vscode.window.showQuickPick(files, {
 					canPickMany: true,
 					placeHolder: 'Select files to restore'
 				});
 				
 				if (selectedFiles) {
-					await snapshotManager.restoreSnapshot(selectedSnapshot.label, selectedFiles);
+					await snapshotManager.restoreSnapshot(selectedSnapshot.label, selectedSnapshot.timestamp, selectedFiles);
 					vscode.window.showInformationMessage(
 						`Restored ${selectedFiles.length} files from snapshot: ${selectedSnapshot.label}`
 					);
 				}
 			}
-		}),
-
-		vscode.commands.registerCommand('local-snapshots.restoreFile', async () => {
-			const activeEditor = vscode.window.activeTextEditor;
-			if (!activeEditor) {
-				vscode.window.showErrorMessage('No active file to restore');
-				return;
-			}
-
-			const workspaceFolders = vscode.workspace.workspaceFolders;
-			if (!workspaceFolders) {
-				vscode.window.showErrorMessage('No workspace folder is open');
-				return;
-			}
-
-			const relativePath = path.relative(
-				workspaceFolders[0].uri.fsPath,
-				activeEditor.document.uri.fsPath
-			);
-
-			await snapshotManager.restoreFile(relativePath);
-			vscode.window.showInformationMessage('File restored from snapshot');
 		})
 	];
 } 
