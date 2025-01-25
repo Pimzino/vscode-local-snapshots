@@ -12,10 +12,23 @@ export class SnapshotManager {
   private documentStates: Map<string, { content: string, version: number }> = new Map();
   private pendingChanges: Set<string> = new Set();
   private diffProvider?: SnapshotDiffWebviewProvider;
+  private timedSnapshotInterval?: NodeJS.Timeout;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
     this.setupPreSaveListener();
+    this.setupTimedSnapshots();
+
+    // Listen for configuration changes
+    this.disposables.push(
+      vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('local-snapshots.enableTimedSnapshots') ||
+            e.affectsConfiguration('local-snapshots.timedSnapshotInterval')) {
+          this.setupTimedSnapshots();
+        }
+      })
+    );
+
     this.diffProvider = new SnapshotDiffWebviewProvider(
       context.extensionUri,
       async (filePath: string) => {
@@ -37,7 +50,57 @@ export class SnapshotManager {
   }
 
   private isPreSaveSnapshotsEnabled(): boolean {
-    return vscode.workspace.getConfiguration('local-snapshots').get('enablePreSaveSnapshots', true);
+    return vscode.workspace.getConfiguration('local-snapshots').get('enablePreSaveSnapshots', false);
+  }
+
+  private isTimedSnapshotsEnabled(): boolean {
+    return vscode.workspace.getConfiguration('local-snapshots').get('enableTimedSnapshots', false);
+  }
+
+  private getTimedSnapshotInterval(): number {
+    return vscode.workspace.getConfiguration('local-snapshots').get('timedSnapshotInterval', 300);
+  }
+
+  private shouldShowTimedSnapshotNotifications(): boolean {
+    return vscode.workspace.getConfiguration('local-snapshots').get('showTimedSnapshotNotifications', true);
+  }
+
+  private setupTimedSnapshots() {
+    // Clear any existing interval
+    if (this.timedSnapshotInterval) {
+      clearInterval(this.timedSnapshotInterval);
+      this.timedSnapshotInterval = undefined;
+    }
+
+    // Set up new interval if enabled
+    if (this.isTimedSnapshotsEnabled()) {
+      const intervalSeconds = Math.max(30, this.getTimedSnapshotInterval());
+      this.timedSnapshotInterval = setInterval(async () => {
+        try {
+          const timestamp = this.formatTimestamp();
+          await this.takeSnapshot(`Timed Snapshot - ${timestamp}`);
+          
+          if (this.shouldShowTimedSnapshotNotifications()) {
+            vscode.window.showInformationMessage(
+              `Created timed snapshot at ${timestamp}`,
+              { modal: false }
+            );
+          }
+        } catch (error) {
+          console.error('Failed to create timed snapshot:', error);
+          vscode.window.showErrorMessage('Failed to create timed snapshot');
+        }
+      }, intervalSeconds * 1000);
+
+      // Add the interval to disposables so it gets cleaned up
+      this.disposables.push({
+        dispose: () => {
+          if (this.timedSnapshotInterval) {
+            clearInterval(this.timedSnapshotInterval);
+          }
+        }
+      });
+    }
   }
 
   private setupPreSaveListener() {
@@ -386,6 +449,9 @@ export class SnapshotManager {
   }
 
   dispose() {
+    if (this.timedSnapshotInterval) {
+      clearInterval(this.timedSnapshotInterval);
+    }
     this.disposables.forEach(d => d.dispose());
   }
 }

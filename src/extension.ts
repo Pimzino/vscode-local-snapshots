@@ -61,6 +61,13 @@ export function activate(context: vscode.ExtensionContext) {
 		() => webviewProvider.refreshList()
 	);
 
+	// Register the settings command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('local-snapshots.openSettings', () => {
+			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:vscode-local-snapshots.local-snapshots');
+		})
+	);
+
 	// Add all disposables to context
 	context.subscriptions.push(webviewDisposable, ...commandDisposables);
 
