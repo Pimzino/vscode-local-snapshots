@@ -3,7 +3,25 @@
   "displayName": "Local Snapshots",
   "description": "Take and Restore snapshots of your workspace files.",
   "version": "0.0.1",
-  "publisher": "vscode-local-snapshots",
+  "publisher": "Pimzino",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/local-snapshots"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/local-snapshots/issues"
+  },
+  "homepage": "https://github.com/yourusername/local-snapshots#readme",
+  "keywords": [
+    "snapshot",
+    "backup",
+    "version control",
+    "file history",
+    "diff",
+    "restore",
+    "local backup"
+  ],
   "engines": {
     "vscode": "^1.74.0"
   },
