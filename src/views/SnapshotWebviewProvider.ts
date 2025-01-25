@@ -119,6 +119,54 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 		</head>
 		<body>
 			<div class="container">
+				<div class="filter-section">
+					<div class="filter-header">
+						<button class="filter-toggle" title="Toggle Filters">
+							<span class="codicon codicon-filter"></span>
+							<span class="filter-label">Filters</span>
+						</button>
+						<button class="clear-filters" title="Clear All Filters">
+							<span class="codicon codicon-clear-all"></span>
+						</button>
+					</div>
+					<div class="filter-panel">
+						<div class="filter-group">
+							<label class="filter-label">Search by Name</label>
+							<div class="filter-input-container">
+								<span class="codicon codicon-search"></span>
+								<input type="text" id="name-filter" class="filter-input" placeholder="Search snapshots...">
+							</div>
+						</div>
+						<div class="filter-group">
+							<label class="filter-label">Date Range</label>
+							<div class="date-range">
+								<div class="filter-input-container">
+									<span class="codicon codicon-calendar"></span>
+									<input type="datetime-local" id="date-from" class="filter-input">
+								</div>
+								<span class="date-separator">to</span>
+								<div class="filter-input-container">
+									<span class="codicon codicon-calendar"></span>
+									<input type="datetime-local" id="date-to" class="filter-input">
+								</div>
+							</div>
+						</div>
+						<div class="filter-group">
+							<label class="filter-label">File Count</label>
+							<div class="file-count-range">
+								<div class="filter-input-container">
+									<span class="codicon codicon-file"></span>
+									<input type="number" id="files-from" class="filter-input" min="0" placeholder="Min">
+								</div>
+								<span class="date-separator">to</span>
+								<div class="filter-input-container">
+									<span class="codicon codicon-file"></span>
+									<input type="number" id="files-to" class="filter-input" min="0" placeholder="Max">
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
 				<div id="snapshot-list" class="snapshot-list"></div>
 			</div>
 

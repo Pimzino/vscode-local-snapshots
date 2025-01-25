@@ -22,6 +22,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-top: 16px;
 }
 
 .snapshot-card {
@@ -153,4 +154,118 @@ body {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* Filter section */
+.filter-section {
+  margin-bottom: 16px;
+  background-color: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: var(--card-radius);
+  overflow: hidden;
+}
+
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px var(--card-padding);
+  border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.filter-toggle,
+.clear-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 3px;
+  transition: background-color var(--transition-duration) ease;
+}
+
+.filter-toggle:hover,
+.clear-filters:hover {
+  background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.filter-toggle .codicon,
+.clear-filters .codicon {
+  font-size: 14px;
+}
+
+.filter-panel {
+  padding: var(--card-padding);
+  display: none;
+}
+
+.filter-panel.expanded {
+  display: block;
+}
+
+.filter-group {
+  margin-bottom: 12px;
+}
+
+.filter-group:last-child {
+  margin-bottom: 0;
+}
+
+.filter-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--vscode-foreground);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.filter-input-container {
+  display: flex;
+  align-items: center;
+  background-color: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+  padding: 0 8px;
+}
+
+.filter-input-container:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+
+.filter-input-container .codicon {
+  color: var(--vscode-input-placeholderForeground);
+  font-size: 14px;
+  margin-right: 6px;
+}
+
+.filter-input {
+  background: none;
+  border: none;
+  color: var(--vscode-input-foreground);
+  font-size: 12px;
+  padding: 4px 0;
+  width: 100%;
+  outline: none;
+}
+
+.filter-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.date-range,
+.file-count-range {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.date-separator {
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  text-align: center;
 } 

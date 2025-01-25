@@ -2,15 +2,93 @@ const vscode = acquireVsCodeApi();
 const snapshotList = document.getElementById('snapshot-list');
 const snapshotTemplate = document.getElementById('snapshot-template');
 
+// Filter elements
+const filterToggle = document.querySelector('.filter-toggle');
+const filterPanel = document.querySelector('.filter-panel');
+const clearFilters = document.querySelector('.clear-filters');
+const nameFilter = document.getElementById('name-filter');
+const dateFrom = document.getElementById('date-from');
+const dateTo = document.getElementById('date-to');
+const filesFrom = document.getElementById('files-from');
+const filesTo = document.getElementById('files-to');
+
+let allSnapshots = [];
+
+// Toggle filter panel
+filterToggle.addEventListener('click', () => {
+  filterPanel.classList.toggle('expanded');
+  filterToggle.setAttribute('aria-expanded', filterPanel.classList.contains('expanded'));
+});
+
+// Clear all filters
+clearFilters.addEventListener('click', () => {
+  nameFilter.value = '';
+  dateFrom.value = '';
+  dateTo.value = '';
+  filesFrom.value = '';
+  filesTo.value = '';
+  applyFilters();
+});
+
+// Add filter event listeners
+nameFilter.addEventListener('input', debounce(applyFilters, 300));
+dateFrom.addEventListener('change', applyFilters);
+dateTo.addEventListener('change', applyFilters);
+filesFrom.addEventListener('input', debounce(applyFilters, 300));
+filesTo.addEventListener('input', debounce(applyFilters, 300));
+
 // Handle messages from the extension
 window.addEventListener('message', event => {
   const message = event.data;
   switch (message.type) {
     case 'refreshList':
-      refreshSnapshotsList(message.snapshots);
+      allSnapshots = message.snapshots;
+      applyFilters();
       break;
   }
 });
+
+function applyFilters() {
+  let filteredSnapshots = [...allSnapshots];
+
+  // Apply name filter
+  const nameQuery = nameFilter.value.toLowerCase().trim();
+  if (nameQuery) {
+    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+      snapshot.name.toLowerCase().includes(nameQuery)
+    );
+  }
+
+  // Apply date range filter
+  if (dateFrom.value) {
+    const fromDate = new Date(dateFrom.value).getTime();
+    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+      snapshot.timestamp >= fromDate
+    );
+  }
+  if (dateTo.value) {
+    const toDate = new Date(dateTo.value).getTime();
+    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+      snapshot.timestamp <= toDate
+    );
+  }
+
+  // Apply file count filter
+  const minFiles = parseInt(filesFrom.value);
+  const maxFiles = parseInt(filesTo.value);
+  if (!isNaN(minFiles)) {
+    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+      snapshot.fileCount >= minFiles
+    );
+  }
+  if (!isNaN(maxFiles)) {
+    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+      snapshot.fileCount <= maxFiles
+    );
+  }
+
+  refreshSnapshotsList(filteredSnapshots);
+}
 
 function refreshSnapshotsList(snapshots) {
   // Clear the current list
@@ -80,6 +158,19 @@ function createSnapshotCard(snapshot) {
   });
 
   return card;
+}
+
+// Utility function to debounce filter input
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
 }
 
 // Initial refresh request
