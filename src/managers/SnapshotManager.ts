@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileSnapshot, Snapshot } from '../types/interfaces';
 import { SnapshotWebviewProvider } from '../views/SnapshotWebviewProvider';
+import { SnapshotDiffWebviewProvider } from '../views/SnapshotDiffWebviewProvider';
 
 export class SnapshotManager {
   private context: vscode.ExtensionContext;
@@ -10,15 +11,41 @@ export class SnapshotManager {
   private disposables: vscode.Disposable[] = [];
   private documentStates: Map<string, { content: string, version: number }> = new Map();
   private pendingChanges: Set<string> = new Set();
+  private diffProvider?: SnapshotDiffWebviewProvider;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
     this.setupPreSaveListener();
+    this.diffProvider = new SnapshotDiffWebviewProvider(
+      context.extensionUri,
+      async (filePath: string) => {
+        // Get the current snapshot being viewed
+        const snapshots = this.getSnapshots();
+        const snapshot = snapshots.find(s => 
+          s.name === this.diffProvider?.snapshotName && 
+          s.timestamp === this.diffProvider?.timestamp
+        );
+        
+        if (snapshot) {
+          const fileToRestore = snapshot.files.find(f => f.relativePath === filePath);
+          if (fileToRestore) {
+            await this.restoreFile(fileToRestore);
+          }
+        }
+      }
+    );
+  }
+
+  private isPreSaveSnapshotsEnabled(): boolean {
+    return vscode.workspace.getConfiguration('local-snapshots').get('enablePreSaveSnapshots', true);
   }
 
   private setupPreSaveListener() {
     // Track document changes
     const changeListener = vscode.workspace.onDidChangeTextDocument(event => {
+      if (!this.isPreSaveSnapshotsEnabled()) {
+        return;
+      }
       const key = event.document.uri.toString();
       this.pendingChanges.add(key);
       console.log(`Change detected in ${event.document.fileName}`);
@@ -26,6 +53,9 @@ export class SnapshotManager {
 
     // Listen for the will save event
     const willSaveListener = vscode.workspace.onWillSaveTextDocument(async event => {
+      if (!this.isPreSaveSnapshotsEnabled()) {
+        return;
+      }
       const document = event.document;
       const key = document.uri.toString();
 
@@ -295,72 +325,63 @@ export class SnapshotManager {
     }
 
     try {
-      const selectedFiles = await vscode.window.showQuickPick(
-        snapshot.files.map(f => ({
-          label: f.relativePath,
-          file: f
-        })),
-        {
-          canPickMany: true,
-          placeHolder: 'Select files to compare'
-        }
-      );
-
-      if (!selectedFiles) {
-        return;
-      }
-
-      const filesToDiff = selectedFiles.length === 0
-        ? snapshot.files
-        : selectedFiles.map(s => s.file);
-
-      const consolidatedCurrentContent = await Promise.all(
-        filesToDiff.map(async (file: FileSnapshot) => {
+      // Get current content for all files and identify which ones have changes
+      const changedFiles = await Promise.all(
+        snapshot.files.map(async (file: FileSnapshot) => {
           try {
             const currentUri = vscode.Uri.file(path.join(workspaceFolders[0].uri.fsPath, file.relativePath));
             const currentDocument = await vscode.workspace.openTextDocument(currentUri);
-            return {
-              content: currentDocument.getText(),
-              relativePath: file.relativePath
-            };
+            const currentContent = currentDocument.getText();
+            
+            // Only include files that have differences
+            if (currentContent !== file.content) {
+              return {
+                relativePath: file.relativePath,
+                originalContent: file.content,
+                modifiedContent: currentContent
+              };
+            }
+            return null;
           } catch (error) {
             console.error(`Failed to read current file: ${file.relativePath}`, error);
-            return {
-              content: '',
-              relativePath: file.relativePath
-            };
+            return null;
           }
         })
       );
 
-      const provider = vscode.workspace.registerTextDocumentContentProvider('local-snapshots', {
-        provideTextDocumentContent: (uri: vscode.Uri): string => {
-          if (uri.path.endsWith('consolidated.snapshot')) {
-            return filesToDiff.map((file: FileSnapshot) => {
-              const separator = '='.repeat(40);
-              return `${separator}\n${file.relativePath}\n${separator}\n\n${file.content}\n`;
-            }).join('\n\n');
-          } else if (uri.path.endsWith('consolidated.current')) {
-            return consolidatedCurrentContent.map(file => {
-              const separator = '='.repeat(40);
-              return `${separator}\n${file.relativePath}\n${separator}\n\n${file.content}\n`;
-            }).join('\n\n');
-          }
-          return '';
-        }
-      });
+      // Filter out null entries (unchanged files)
+      const filesToDiff = changedFiles.filter(file => file !== null);
 
-      try {
-        const snapshotUri = vscode.Uri.parse('local-snapshots:consolidated.snapshot');
-        const currentUri = vscode.Uri.parse('local-snapshots:consolidated.current');
-        const title = `${snapshotName} - ${filesToDiff.length} files`;
-        await vscode.commands.executeCommand('vscode.diff', snapshotUri, currentUri, title);
-      } finally {
-        provider.dispose();
+      if (filesToDiff.length === 0) {
+        vscode.window.showInformationMessage('No differences found in any files.');
+        return;
+      }
+
+      // Show the diffs in our custom webview
+      if (this.diffProvider) {
+        await this.diffProvider.showDiff(filesToDiff, snapshotName, timestamp);
       }
     } catch (error) {
       console.error('Failed to show diff:', error);
       vscode.window.showErrorMessage('Failed to show diff view');
+    }
+  }
+
+  private async restoreFile(file: FileSnapshot): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      throw new Error('No workspace folder is open');
+    }
+
+    const fullPath = path.join(workspaceFolders[0].uri.fsPath, file.relativePath);
+    try {
+      await vscode.workspace.fs.writeFile(
+        vscode.Uri.file(fullPath),
+        Buffer.from(file.content, 'utf8')
+      );
+    } catch (error) {
+      console.error(`Failed to restore file: ${file.relativePath}`, error);
+      throw new Error(`Failed to restore file: ${file.relativePath}`);
     }
   }
 

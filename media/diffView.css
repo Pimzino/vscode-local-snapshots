@@ -1,0 +1,215 @@
+body {
+    padding: 0;
+    margin: 0;
+    color: var(--vscode-editor-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    line-height: var(--vscode-editor-line-height);
+}
+
+#diff-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.global-controls {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background-color: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.global-control {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    margin-right: 8px;
+    background: none;
+    border: none;
+    color: var(--vscode-button-foreground);
+    cursor: pointer;
+    font-size: var(--vscode-editor-font-size);
+}
+
+.global-control:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.global-control .codicon {
+    margin-right: 4px;
+}
+
+.file-header {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background-color: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    cursor: pointer;
+}
+
+.file-header:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.file-header .codicon {
+    margin-right: 8px;
+}
+
+.file-header .actions {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    gap: 8px;
+}
+
+.restore-button {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    background: none;
+    border: 1px solid var(--vscode-button-border);
+    color: var(--vscode-button-foreground);
+    cursor: pointer;
+    font-size: var(--vscode-editor-font-size);
+    border-radius: 3px;
+}
+
+.restore-button:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.restore-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.restore-button .codicon {
+    margin-right: 4px;
+}
+
+.restored-indicator {
+    display: flex;
+    align-items: center;
+    color: var(--vscode-gitDecoration-addedResourceForeground);
+    font-size: 0.9em;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.restored-indicator.visible {
+    opacity: 1;
+}
+
+.restored-indicator .codicon {
+    margin-right: 4px;
+}
+
+.file-path {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 8px;
+}
+
+.diff-content {
+    display: none;
+    background-color: var(--vscode-editor-background);
+}
+
+.diff-content.expanded {
+    display: block;
+}
+
+.diff-line {
+    display: flex;
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    line-height: var(--vscode-editor-line-height);
+}
+
+.diff-line-numbers {
+    display: flex;
+    min-width: 100px;
+    user-select: none;
+}
+
+.diff-line-number {
+    color: var(--vscode-editorLineNumber-foreground);
+    text-align: right;
+    padding: 0 8px;
+    min-width: 40px;
+    user-select: none;
+}
+
+.diff-line-content {
+    display: flex;
+    flex: 1;
+}
+
+.diff-line-left, .diff-line-right {
+    flex: 1;
+    white-space: pre;
+    padding: 0 8px;
+}
+
+.diff-line.added .diff-line-right {
+    background-color: var(--vscode-diffEditor-insertedLineBackground);
+}
+
+.diff-line.removed .diff-line-left {
+    background-color: var(--vscode-diffEditor-removedLineBackground);
+}
+
+.diff-line.added .diff-line-right::before {
+    content: '+';
+    color: var(--vscode-diffEditor-insertedTextBackground);
+    margin-right: 4px;
+}
+
+.diff-line.removed .diff-line-left::before {
+    content: '-';
+    color: var(--vscode-diffEditor-removedTextBackground);
+    margin-right: 4px;
+}
+
+.file-group {
+    margin-bottom: 8px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 3px;
+}
+
+.collapse-icon {
+    transition: transform 0.2s;
+}
+
+.file-header.collapsed .collapse-icon {
+    transform: rotate(-90deg);
+}
+
+.collapse-indicator {
+    display: flex;
+    align-items: center;
+    color: var(--vscode-icon-foreground);
+    margin-left: auto;
+}
+
+.collapse-indicator::before {
+    content: '(click to collapse)';
+    font-size: 0.9em;
+    margin-right: 4px;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.file-header.collapsed .collapse-indicator::before {
+    content: '(click to expand)';
+}
+
+.file-header:hover .collapse-indicator::before {
+    opacity: 1;
+} 

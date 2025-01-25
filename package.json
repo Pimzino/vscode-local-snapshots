@@ -16,6 +16,16 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Local Snapshots",
+      "properties": {
+        "local-snapshots.enablePreSaveSnapshots": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically create snapshots before saving files"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
