@@ -37,53 +37,63 @@
     "configuration": {
       "title": "Local Snapshots",
       "properties": {
-        "local-snapshots.enablePreSaveSnapshots": {
+      "localSnapshots": {
+        "type": "object",
+        "title": "Local Snapshots",
+        "description": "Local Snapshots configuration",
+        "properties": {
+        "enablePreSaveSnapshots": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically create snapshots before saving files"
+          "markdownDescription": "Automatically create snapshots before saving files",
+          "scope": "window"
         },
-        "local-snapshots.enableTimedSnapshots": {
+        "enableTimedSnapshots": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically create snapshots at regular intervals",
+          "markdownDescription": "Automatically create snapshots at regular intervals",
+          "scope": "window",
           "order": 1
         },
-        "local-snapshots.timedSnapshotInterval": {
+        "timedSnapshotInterval": {
           "type": "number",
           "default": 300,
           "minimum": 30,
-          "description": "Interval in seconds between automatic snapshots (minimum 30 seconds)",
-          "order": 2,
-          "enablement": "local-snapshots.enableTimedSnapshots"
+          "markdownDescription": "Interval in seconds between automatic snapshots (minimum 30 seconds)",
+          "scope": "window",
+          "order": 2
         },
-        "local-snapshots.showTimedSnapshotNotifications": {
+        "showTimedSnapshotNotifications": {
           "type": "boolean",
           "default": true,
-          "description": "Show notifications when timed snapshots are created",
-          "order": 3,
-          "enablement": "local-snapshots.enableTimedSnapshots"
+          "markdownDescription": "Show notifications when timed snapshots are created",
+          "scope": "window",
+          "order": 3
         },
-        "local-snapshots.skipUnchangedSnapshots": {
+        "skipUnchangedSnapshots": {
           "type": "boolean",
           "default": false,
-          "description": "Skip creating automatic snapshots when no files have changed",
-          "order": 4,
-          "enablement": "local-snapshots.enableTimedSnapshots"
+          "markdownDescription": "Skip creating automatic snapshots when no files have changed",
+          "scope": "window",
+          "order": 4
         },
-        "local-snapshots.limitSnapshotCount": {
+        "limitSnapshotCount": {
           "type": "boolean",
           "default": false,
-          "description": "Limit the maximum number of snapshots",
+          "markdownDescription": "Limit the maximum number of snapshots",
+          "scope": "window",
           "order": 5
         },
-        "local-snapshots.maxSnapshotCount": {
+        "maxSnapshotCount": {
           "type": "number",
           "default": 10,
           "minimum": 1,
-          "description": "Maximum number of snapshots to keep (oldest will be deleted when limit is reached)",
-          "order": 6,
-          "enablement": "local-snapshots.limitSnapshotCount"
+          "markdownDescription": "Maximum number of snapshots to keep (oldest will be deleted when limit is reached)",
+          "scope": "window",
+          "order": 6
         }
+        }
+      }
       }
     },
     "viewsContainers": {

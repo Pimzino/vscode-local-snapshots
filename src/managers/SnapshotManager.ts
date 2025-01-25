@@ -53,36 +53,36 @@ export class SnapshotManager {
     // Listen for configuration changes
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration(async e => {
-        if (e.affectsConfiguration('local-snapshots.enableTimedSnapshots') ||
-            e.affectsConfiguration('local-snapshots.timedSnapshotInterval')) {
-          this.setupTimedSnapshots();
+      if (e.affectsConfiguration('localSnapshots.enableTimedSnapshots') ||
+        e.affectsConfiguration('localSnapshots.timedSnapshotInterval')) {
+        this.setupTimedSnapshots();
+      }
+      if (e.affectsConfiguration('localSnapshots.limitSnapshotCount')) {
+        const isLimitEnabled = this.isSnapshotLimitEnabled();
+        if (isLimitEnabled) {
+        const result = await vscode.window.showWarningMessage(
+          'Enabling snapshot limit will automatically delete older snapshots when the limit is reached. Are you sure you want to continue?',
+          { modal: true },
+          'Yes',
+          'No'
+        );
+        if (result === 'Yes') {
+          await this.enforceSnapshotLimit();
+        } else {
+          // Revert the setting if user cancels
+          await this.getConfig().update(
+          'limitSnapshotCount',
+          false,
+          vscode.ConfigurationTarget.Global
+          );
         }
-        if (e.affectsConfiguration('local-snapshots.limitSnapshotCount')) {
-          const isLimitEnabled = this.isSnapshotLimitEnabled();
-          if (isLimitEnabled) {
-            const result = await vscode.window.showWarningMessage(
-              'Enabling snapshot limit will automatically delete older snapshots when the limit is reached. Are you sure you want to continue?',
-              { modal: true },
-              'Yes',
-              'No'
-            );
-            if (result === 'Yes') {
-              await this.enforceSnapshotLimit();
-            } else {
-              // Revert the setting if user cancels
-              await vscode.workspace.getConfiguration('local-snapshots').update(
-                'limitSnapshotCount',
-                false,
-                vscode.ConfigurationTarget.Global
-              );
-            }
-          }
         }
-        if (e.affectsConfiguration('local-snapshots.maxSnapshotCount')) {
-          if (this.isSnapshotLimitEnabled()) {
-            await this.enforceSnapshotLimit();
-          }
+      }
+      if (e.affectsConfiguration('localSnapshots.maxSnapshotCount')) {
+        if (this.isSnapshotLimitEnabled()) {
+        await this.enforceSnapshotLimit();
         }
+      }
       })
     );
 
@@ -106,24 +106,28 @@ export class SnapshotManager {
     );
   }
 
+  private getConfig() {
+    return vscode.workspace.getConfiguration('localSnapshots');
+  }
+
   private isPreSaveSnapshotsEnabled(): boolean {
-    return vscode.workspace.getConfiguration('local-snapshots').get('enablePreSaveSnapshots', false);
+    return this.getConfig().get('enablePreSaveSnapshots', false);
   }
 
   private isTimedSnapshotsEnabled(): boolean {
-    return vscode.workspace.getConfiguration('local-snapshots').get('enableTimedSnapshots', false);
+    return this.getConfig().get('enableTimedSnapshots', false);
   }
 
   private getTimedSnapshotInterval(): number {
-    return vscode.workspace.getConfiguration('local-snapshots').get('timedSnapshotInterval', 300);
+    return this.getConfig().get('timedSnapshotInterval', 300);
   }
 
   private shouldShowTimedSnapshotNotifications(): boolean {
-    return vscode.workspace.getConfiguration('local-snapshots').get('showTimedSnapshotNotifications', true);
+    return this.getConfig().get('showTimedSnapshotNotifications', true);
   }
 
   private shouldSkipUnchangedSnapshots(): boolean {
-    return vscode.workspace.getConfiguration('local-snapshots').get('skipUnchangedSnapshots', false);
+    return this.getConfig().get('skipUnchangedSnapshots', false);
   }
 
   private async hasChangedFiles(): Promise<boolean> {
@@ -447,11 +451,11 @@ export class SnapshotManager {
   }
 
   private isSnapshotLimitEnabled(): boolean {
-    return vscode.workspace.getConfiguration('local-snapshots').get('limitSnapshotCount', false);
+    return this.getConfig().get('limitSnapshotCount', false);
   }
 
   private getMaxSnapshotCount(): number {
-    return vscode.workspace.getConfiguration('local-snapshots').get('maxSnapshotCount', 10);
+    return this.getConfig().get('maxSnapshotCount', 10);
   }
 
   private async enforceSnapshotLimit(): Promise<void> {
