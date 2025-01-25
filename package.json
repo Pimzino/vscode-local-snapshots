@@ -44,6 +44,27 @@
           "description": "Show notifications when timed snapshots are created",
           "order": 3,
           "enablement": "local-snapshots.enableTimedSnapshots"
+        },
+        "local-snapshots.skipUnchangedSnapshots": {
+          "type": "boolean",
+          "default": false,
+          "description": "Skip creating automatic snapshots when no files have changed",
+          "order": 4,
+          "enablement": "local-snapshots.enableTimedSnapshots"
+        },
+        "local-snapshots.limitSnapshotCount": {
+          "type": "boolean",
+          "default": false,
+          "description": "Limit the maximum number of snapshots",
+          "order": 5
+        },
+        "local-snapshots.maxSnapshotCount": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "description": "Maximum number of snapshots to keep (oldest will be deleted when limit is reached)",
+          "order": 6,
+          "enablement": "local-snapshots.limitSnapshotCount"
         }
       }
     },
@@ -100,6 +121,16 @@
         "command": "local-snapshots.restoreFile",
         "title": "Restore File from Snapshot",
         "category": "Local Snapshots"
+      },
+      {
+        "command": "local-snapshots.snapshotFile",
+        "title": "Take Snapshot of File",
+        "category": "Local Snapshots"
+      },
+      {
+        "command": "local-snapshots.snapshotDirectory",
+        "title": "Take Snapshot of Directory",
+        "category": "Local Snapshots"
       }
     ],
     "menus": {
@@ -118,6 +149,18 @@
           "command": "local-snapshots.openSettings",
           "when": "view == local-snapshots-list",
           "group": "navigation@3"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "local-snapshots.snapshotFile",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "local-snapshots@1"
+        },
+        {
+          "command": "local-snapshots.snapshotDirectory",
+          "when": "resourceScheme == file && explorerResourceIsFolder",
+          "group": "local-snapshots@1"
         }
       ]
     },

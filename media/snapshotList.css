@@ -1,0 +1,156 @@
+:root {
+  --card-padding: 16px;
+  --card-radius: 6px;
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --transition-duration: 0.2s;
+}
+
+body {
+  padding: 16px;
+  color: var(--vscode-foreground);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.container {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.snapshot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.snapshot-card {
+  background-color: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-widget-border);
+  border-radius: var(--card-radius);
+  padding: var(--card-padding);
+  box-shadow: var(--card-shadow);
+  transition: all var(--transition-duration) ease-in-out;
+}
+
+.snapshot-card:hover {
+  border-color: var(--vscode-focusBorder);
+  box-shadow: var(--card-hover-shadow);
+  transform: translateY(-1px);
+}
+
+.snapshot-header {
+  margin-bottom: 12px;
+}
+
+.snapshot-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.snapshot-title .codicon {
+  color: var(--vscode-textLink-foreground);
+  font-size: 16px;
+}
+
+.snapshot-title .name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--vscode-foreground);
+}
+
+.snapshot-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.file-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-count .codicon {
+  font-size: 14px;
+}
+
+.snapshot-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all var(--transition-duration) ease;
+}
+
+.action-button:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.action-button .codicon {
+  font-size: 14px;
+}
+
+.restore-button {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.restore-button:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+.delete-button {
+  background-color: var(--vscode-errorForeground);
+  color: var(--vscode-button-foreground);
+  opacity: 0.8;
+}
+
+.delete-button:hover {
+  opacity: 1;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--vscode-descriptionForeground);
+  border: 2px dashed var(--vscode-widget-border);
+  border-radius: var(--card-radius);
+  margin: 20px 0;
+}
+
+.empty-state-icon {
+  font-size: 32px;
+  margin-bottom: 16px;
+  color: var(--vscode-textLink-foreground);
+}
+
+/* Responsive design */
+@media (max-width: 400px) {
+  .snapshot-actions {
+    flex-direction: column;
+  }
+
+  .action-button {
+    width: 100%;
+    justify-content: center;
+  }
+} 

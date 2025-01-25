@@ -13,18 +13,75 @@ export class SnapshotManager {
   private pendingChanges: Set<string> = new Set();
   private diffProvider?: SnapshotDiffWebviewProvider;
   private timedSnapshotInterval?: NodeJS.Timeout;
+  private statusBarItem: vscode.StatusBarItem;
+  private countdownInterval?: NodeJS.Timeout;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
+    
+    // Create status bar item
+    this.statusBarItem = vscode.window.createStatusBarItem(
+      vscode.StatusBarAlignment.Right,
+      100
+    );
+    this.statusBarItem.command = 'local-snapshots.openSettings';
+    this.disposables.push(this.statusBarItem);
+
     this.setupPreSaveListener();
     this.setupTimedSnapshots();
 
+    // Register commands for file/directory snapshots
+    this.disposables.push(
+      vscode.commands.registerCommand('local-snapshots.snapshotFile', async (uri: vscode.Uri) => {
+        try {
+          await this.takeFileSnapshot(uri);
+          vscode.window.showInformationMessage(`Snapshot taken of file: ${path.basename(uri.fsPath)}`);
+        } catch (error) {
+          vscode.window.showErrorMessage(`Failed to take snapshot: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }),
+      vscode.commands.registerCommand('local-snapshots.snapshotDirectory', async (uri: vscode.Uri) => {
+        try {
+          await this.takeDirectorySnapshot(uri);
+          vscode.window.showInformationMessage(`Snapshot taken of directory: ${path.basename(uri.fsPath)}`);
+        } catch (error) {
+          vscode.window.showErrorMessage(`Failed to take snapshot: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      })
+    );
+
     // Listen for configuration changes
     this.disposables.push(
-      vscode.workspace.onDidChangeConfiguration(e => {
+      vscode.workspace.onDidChangeConfiguration(async e => {
         if (e.affectsConfiguration('local-snapshots.enableTimedSnapshots') ||
             e.affectsConfiguration('local-snapshots.timedSnapshotInterval')) {
           this.setupTimedSnapshots();
+        }
+        if (e.affectsConfiguration('local-snapshots.limitSnapshotCount')) {
+          const isLimitEnabled = this.isSnapshotLimitEnabled();
+          if (isLimitEnabled) {
+            const result = await vscode.window.showWarningMessage(
+              'Enabling snapshot limit will automatically delete older snapshots when the limit is reached. Are you sure you want to continue?',
+              { modal: true },
+              'Yes',
+              'No'
+            );
+            if (result === 'Yes') {
+              await this.enforceSnapshotLimit();
+            } else {
+              // Revert the setting if user cancels
+              await vscode.workspace.getConfiguration('local-snapshots').update(
+                'limitSnapshotCount',
+                false,
+                vscode.ConfigurationTarget.Global
+              );
+            }
+          }
+        }
+        if (e.affectsConfiguration('local-snapshots.maxSnapshotCount')) {
+          if (this.isSnapshotLimitEnabled()) {
+            await this.enforceSnapshotLimit();
+          }
         }
       })
     );
@@ -65,42 +122,155 @@ export class SnapshotManager {
     return vscode.workspace.getConfiguration('local-snapshots').get('showTimedSnapshotNotifications', true);
   }
 
+  private shouldSkipUnchangedSnapshots(): boolean {
+    return vscode.workspace.getConfiguration('local-snapshots').get('skipUnchangedSnapshots', false);
+  }
+
+  private async hasChangedFiles(): Promise<boolean> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      return false;
+    }
+
+    const lastSnapshot = this.getSnapshots().sort((a, b) => b.timestamp - a.timestamp)[0];
+    if (!lastSnapshot) {
+      return true; // If no previous snapshot exists, consider it as changed
+    }
+
+    for (const folder of workspaceFolders) {
+      const pattern = new vscode.RelativePattern(folder, '**/*');
+      const uris = await vscode.workspace.findFiles(
+        pattern,
+        '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
+      );
+
+      for (const uri of uris) {
+        try {
+          const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
+          if (this.shouldSkipFile(relativePath)) {
+            continue;
+          }
+
+          const document = await vscode.workspace.openTextDocument(uri);
+          const currentContent = document.getText();
+          
+          // Find the corresponding file in the last snapshot
+          const lastFile = lastSnapshot.files.find(f => f.relativePath === relativePath);
+          
+          // If file is new or content has changed, return true
+          if (!lastFile || lastFile.content !== currentContent) {
+            return true;
+          }
+        } catch (error) {
+          console.error(`Failed to read file: ${uri.fsPath}`, error);
+        }
+      }
+
+      // Check for deleted files
+      for (const lastFile of lastSnapshot.files) {
+        const fullPath = path.join(folder.uri.fsPath, lastFile.relativePath);
+        try {
+          await vscode.workspace.fs.stat(vscode.Uri.file(fullPath));
+        } catch {
+          // File doesn't exist anymore, consider it as a change
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   private setupTimedSnapshots() {
-    // Clear any existing interval
+    // Clear any existing intervals
     if (this.timedSnapshotInterval) {
       clearInterval(this.timedSnapshotInterval);
       this.timedSnapshotInterval = undefined;
     }
-
-    // Set up new interval if enabled
-    if (this.isTimedSnapshotsEnabled()) {
-      const intervalSeconds = Math.max(30, this.getTimedSnapshotInterval());
-      this.timedSnapshotInterval = setInterval(async () => {
-        try {
-          const timestamp = this.formatTimestamp();
-          await this.takeSnapshot(`Timed Snapshot - ${timestamp}`);
-          
-          if (this.shouldShowTimedSnapshotNotifications()) {
-            vscode.window.showInformationMessage(
-              `Created timed snapshot at ${timestamp}`,
-              { modal: false }
-            );
-          }
-        } catch (error) {
-          console.error('Failed to create timed snapshot:', error);
-          vscode.window.showErrorMessage('Failed to create timed snapshot');
-        }
-      }, intervalSeconds * 1000);
-
-      // Add the interval to disposables so it gets cleaned up
-      this.disposables.push({
-        dispose: () => {
-          if (this.timedSnapshotInterval) {
-            clearInterval(this.timedSnapshotInterval);
-          }
-        }
-      });
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = undefined;
     }
+
+    // Hide status bar item if timed snapshots are disabled
+    if (!this.isTimedSnapshotsEnabled()) {
+      this.statusBarItem.hide();
+      return;
+    }
+
+    const intervalSeconds = Math.max(30, this.getTimedSnapshotInterval());
+    let nextSnapshot = Date.now() + (intervalSeconds * 1000);
+
+    // Update status bar immediately
+    this.updateStatusBar(nextSnapshot);
+    this.statusBarItem.show();
+
+    // Set up countdown interval
+    this.countdownInterval = setInterval(() => {
+      this.updateStatusBar(nextSnapshot);
+    }, 1000);
+
+    // Set up snapshot interval
+    this.timedSnapshotInterval = setInterval(async () => {
+      try {
+        if (this.shouldSkipUnchangedSnapshots()) {
+          const hasChanges = await this.hasChangedFiles();
+          if (!hasChanges) {
+            // Update next snapshot time without creating a snapshot
+            nextSnapshot = Date.now() + (intervalSeconds * 1000);
+            this.updateStatusBar(nextSnapshot);
+            
+            if (this.shouldShowTimedSnapshotNotifications()) {
+              vscode.window.showInformationMessage('Skipped timed snapshot - no changes detected');
+            }
+            return;
+          }
+        }
+
+        const timestamp = this.formatTimestamp();
+        await this.takeSnapshot(`Timed Snapshot - ${timestamp}`);
+        
+        if (this.shouldShowTimedSnapshotNotifications()) {
+          vscode.window.showInformationMessage(
+            `Created timed snapshot at ${timestamp}`,
+            { modal: false }
+          );
+        }
+
+        // Update next snapshot time
+        nextSnapshot = Date.now() + (intervalSeconds * 1000);
+        this.updateStatusBar(nextSnapshot);
+
+        // Refresh the webview to show the new snapshot
+        this.webviewProvider?.refreshList();
+      } catch (error) {
+        console.error('Failed to create timed snapshot:', error);
+        vscode.window.showErrorMessage('Failed to create timed snapshot');
+      }
+    }, intervalSeconds * 1000);
+
+    // Add the intervals to disposables
+    this.disposables.push(
+      { dispose: () => {
+        if (this.timedSnapshotInterval) {
+          clearInterval(this.timedSnapshotInterval);
+        }
+        if (this.countdownInterval) {
+          clearInterval(this.countdownInterval);
+        }
+      }}
+    );
+  }
+
+  private updateStatusBar(nextSnapshotTime: number) {
+    const timeLeft = Math.max(0, nextSnapshotTime - Date.now());
+    const hours = Math.floor(timeLeft / 3600000);
+    const minutes = Math.floor((timeLeft % 3600000) / 60000);
+    const seconds = Math.floor((timeLeft % 60000) / 1000);
+    
+    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    this.statusBarItem.text = `$(history) Next snapshot in ${timeString}`;
+    this.statusBarItem.tooltip = 'Click to open Local Snapshots settings';
   }
 
   private setupPreSaveListener() {
@@ -276,6 +446,57 @@ export class SnapshotManager {
     return `${dateStr.replace(/[/:]/g, '-')} ${timeStr}`;
   }
 
+  private isSnapshotLimitEnabled(): boolean {
+    return vscode.workspace.getConfiguration('local-snapshots').get('limitSnapshotCount', false);
+  }
+
+  private getMaxSnapshotCount(): number {
+    return vscode.workspace.getConfiguration('local-snapshots').get('maxSnapshotCount', 10);
+  }
+
+  private async enforceSnapshotLimit(): Promise<void> {
+    if (!this.isSnapshotLimitEnabled()) {
+      return;
+    }
+
+    const maxCount = this.getMaxSnapshotCount();
+    const snapshots = this.getSnapshots();
+
+    if (snapshots.length > maxCount) {
+      // Sort snapshots by timestamp (newest first)
+      const sortedSnapshots = snapshots.sort((a, b) => b.timestamp - a.timestamp);
+      // Keep only the newest maxCount snapshots
+      const updatedSnapshots = sortedSnapshots.slice(0, maxCount);
+      await this.saveSnapshots(updatedSnapshots);
+      
+      // Refresh the webview to show the updated list
+      this.webviewProvider?.refreshList();
+
+      const deletedCount = snapshots.length - maxCount;
+      vscode.window.showInformationMessage(
+        `Deleted ${deletedCount} old snapshot${deletedCount === 1 ? '' : 's'} to maintain the configured limit of ${maxCount}.`
+      );
+    }
+  }
+
+  private async addSnapshot(snapshot: Snapshot): Promise<void> {
+    const snapshots = this.getSnapshots();
+    snapshots.push(snapshot);
+
+    if (this.isSnapshotLimitEnabled()) {
+      const maxCount = this.getMaxSnapshotCount();
+      if (snapshots.length > maxCount) {
+        // Sort by timestamp (newest first) and keep only maxCount snapshots
+        const sortedSnapshots = snapshots.sort((a, b) => b.timestamp - a.timestamp);
+        await this.saveSnapshots(sortedSnapshots.slice(0, maxCount));
+      } else {
+        await this.saveSnapshots(snapshots);
+      }
+    } else {
+      await this.saveSnapshots(snapshots);
+    }
+  }
+
   async takeSnapshot(name?: string): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
@@ -314,15 +535,21 @@ export class SnapshotManager {
       }
     }
 
-    const snapshot: Snapshot = {
-      name: snapshotName,
-      timestamp: Date.now(),
-      files
-    };
+    // Only create snapshot if there are files to snapshot
+    if (files.length > 0) {
+      const snapshot: Snapshot = {
+        name: snapshotName,
+        timestamp: Date.now(),
+        files
+      };
 
-    const snapshots = this.getSnapshots();
-    snapshots.push(snapshot);
-    await this.saveSnapshots(snapshots);
+      await this.addSnapshot(snapshot);
+
+      // Refresh the webview after saving
+      this.webviewProvider?.refreshList();
+    } else {
+      throw new Error('No files found to snapshot');
+    }
   }
 
   async deleteSnapshot(snapshotName: string, timestamp: number): Promise<void> {
@@ -448,10 +675,106 @@ export class SnapshotManager {
     }
   }
 
+  async takeFileSnapshot(uri: vscode.Uri): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      throw new Error('No workspace folder is open');
+    }
+
+    const workspaceFolder = workspaceFolders.find(folder => 
+      uri.fsPath.startsWith(folder.uri.fsPath)
+    );
+
+    if (!workspaceFolder) {
+      throw new Error('File is not in the current workspace');
+    }
+
+    const relativePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+    if (this.shouldSkipFile(relativePath)) {
+      throw new Error('This file type is excluded from snapshots');
+    }
+
+    try {
+      const document = await vscode.workspace.openTextDocument(uri);
+      const fileName = path.basename(uri.fsPath);
+      const timestamp = this.formatTimestamp();
+      
+      const snapshot: Snapshot = {
+        name: `File Snapshot - ${fileName} - ${timestamp}`,
+        timestamp: Date.now(),
+        files: [{
+          content: document.getText(),
+          relativePath
+        }]
+      };
+
+      await this.addSnapshot(snapshot);
+      this.webviewProvider?.refreshList();
+
+    } catch (error) {
+      console.error('Failed to take file snapshot:', error);
+      throw new Error('Failed to read file contents');
+    }
+  }
+
+  async takeDirectorySnapshot(uri: vscode.Uri): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      throw new Error('No workspace folder is open');
+    }
+
+    const workspaceFolder = workspaceFolders.find(folder => 
+      uri.fsPath.startsWith(folder.uri.fsPath)
+    );
+
+    if (!workspaceFolder) {
+      throw new Error('Directory is not in the current workspace');
+    }
+
+    const files: FileSnapshot[] = [];
+    const pattern = new vscode.RelativePattern(uri, '**/*');
+    const uris = await vscode.workspace.findFiles(pattern);
+
+    for (const fileUri of uris) {
+      try {
+        const relativePath = path.relative(workspaceFolder.uri.fsPath, fileUri.fsPath);
+        if (!this.shouldSkipFile(relativePath)) {
+          const document = await vscode.workspace.openTextDocument(fileUri);
+          files.push({
+            content: document.getText(),
+            relativePath
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to read file: ${fileUri.fsPath}`, error);
+      }
+    }
+
+    if (files.length === 0) {
+      throw new Error('No files found to snapshot in this directory');
+    }
+
+    const dirName = path.basename(uri.fsPath);
+    const timestamp = this.formatTimestamp();
+    
+    const snapshot: Snapshot = {
+      name: `Directory Snapshot - ${dirName} - ${timestamp}`,
+      timestamp: Date.now(),
+      files
+    };
+
+    await this.addSnapshot(snapshot);
+    this.webviewProvider?.refreshList();
+  }
+
   dispose() {
     if (this.timedSnapshotInterval) {
       clearInterval(this.timedSnapshotInterval);
     }
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+    }
+    this.statusBarItem.dispose();
     this.disposables.forEach(d => d.dispose());
   }
 }
