@@ -108,103 +108,109 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 		const nonce = this.getNonce();
 
 		return `<!DOCTYPE html>
-		<html lang="en">
-		<head>
-			<meta charset="UTF-8">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-			<link href="${styleUri}" rel="stylesheet">
-			<link href="${codiconsUri}" rel="stylesheet">
-			<title>Local Snapshots</title>
-		</head>
-		<body>
-			<div class="container">
-				<div class="filter-section">
-					<div class="filter-header">
-						<button class="filter-toggle" title="Toggle Filters">
-							<span class="codicon codicon-filter"></span>
-							<span class="filter-label">Filters</span>
-						</button>
-						<button class="clear-filters" title="Clear All Filters">
-							<span class="codicon codicon-clear-all"></span>
-						</button>
-					</div>
-					<div class="filter-panel">
-						<div class="filter-group">
-							<label class="filter-label">Search by Name</label>
-							<div class="filter-input-container">
-								<span class="codicon codicon-search"></span>
-								<input type="text" id="name-filter" class="filter-input" placeholder="Search snapshots...">
-							</div>
-						</div>
-						<div class="filter-group">
-							<label class="filter-label">Date Range</label>
-							<div class="date-range">
-								<div class="filter-input-container">
-									<span class="codicon codicon-calendar"></span>
-									<input type="datetime-local" id="date-from" class="filter-input">
-								</div>
-								<span class="date-separator">to</span>
-								<div class="filter-input-container">
-									<span class="codicon codicon-calendar"></span>
-									<input type="datetime-local" id="date-to" class="filter-input">
-								</div>
-							</div>
-						</div>
-						<div class="filter-group">
-							<label class="filter-label">File Count</label>
-							<div class="file-count-range">
-								<div class="filter-input-container">
-									<span class="codicon codicon-file"></span>
-									<input type="number" id="files-from" class="filter-input" min="0" placeholder="Min">
-								</div>
-								<span class="date-separator">to</span>
-								<div class="filter-input-container">
-									<span class="codicon codicon-file"></span>
-									<input type="number" id="files-to" class="filter-input" min="0" placeholder="Max">
-								</div>
-							</div>
-						</div>
-					</div>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+        <link href="${styleUri}" rel="stylesheet">
+        <link href="${codiconsUri}" rel="stylesheet">
+        <title>Local Snapshots</title>
+    </head>
+    <body>
+        <div class="container">
+            <div class="filter-section">
+                <div class="filter-header">
+                    <button class="filter-toggle" title="Toggle Filters">
+                        <span class="codicon codicon-filter"></span>
+                        <span>Filters</span>
+                    </button>
+                    <button class="clear-filters" title="Clear All Filters">
+                        <span class="codicon codicon-clear-all"></span>
+                        <span>Clear</span>
+                    </button>
+                </div>
+                <div class="filter-panel">
+                    <div class="filter-group">
+                        <label class="filter-label">Search Snapshots</label>
+                        <div class="filter-input-container">
+                            <span class="codicon codicon-search"></span>
+                            <input type="text" id="name-filter" class="filter-input" placeholder="Type to search...">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Date Range</label>
+                        <div class="date-range">
+                            <div class="filter-input-container">
+                                <span class="codicon codicon-calendar"></span>
+                                <input type="datetime-local" id="date-from" class="filter-input">
+                            </div>
+                            <span class="date-separator">to</span>
+                            <div class="filter-input-container">
+                                <span class="codicon codicon-calendar"></span>
+                                <input type="datetime-local" id="date-to" class="filter-input">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">File Count</label>
+                        <div class="file-count-range">
+                            <div class="filter-input-container">
+                                <span class="codicon codicon-file"></span>
+                                <input type="number" id="files-from" class="filter-input" min="0" placeholder="Min files">
+                            </div>
+                            <span class="date-separator">to</span>
+                            <div class="filter-input-container">
+                                <span class="codicon codicon-file"></span>
+                                <input type="number" id="files-to" class="filter-input" min="0" placeholder="Max files">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="snapshot-list" class="snapshot-list"></div>
+        </div>
+
+<template id="snapshot-template">
+	<div class="snapshot-card">
+		<div class="snapshot-header">
+			<div>
+				<div class="snapshot-title">
+					<span class="codicon codicon-history"></span>
+					<span class="name"></span>
 				</div>
-				<div id="snapshot-list" class="snapshot-list"></div>
+				<div class="snapshot-meta">
+					<span class="timestamp">
+						<span class="codicon codicon-calendar"></span>
+						<span class="time"></span>
+					</span>
+					<span class="file-count">
+						<span class="codicon codicon-file"></span>
+						<span class="count"></span>
+					</span>
+				</div>
 			</div>
+		</div>
+		<div class="snapshot-actions">
+			<button class="action-button restore-button" title="Restore Snapshot">
+				<span class="codicon codicon-debug-restart"></span>
+				<span>Restore</span>
+			</button>
+			<button class="action-button diff-button" title="View Changes">
+				<span class="codicon codicon-diff"></span>
+				<span>View Diffs</span>
+			</button>
+			<button class="action-button delete-button" title="Delete Snapshot">
+				<span class="codicon codicon-trash"></span>
+				<span>Delete</span>
+			</button>
+		</div>
+	</div>
+</template>
 
-			<template id="snapshot-template">
-				<div class="snapshot-card">
-					<div class="snapshot-header">
-						<div class="snapshot-title">
-							<span class="codicon codicon-history"></span>
-							<span class="name"></span>
-						</div>
-						<div class="snapshot-meta">
-							<span class="timestamp"></span>
-							<span class="file-count">
-								<span class="codicon codicon-file"></span>
-								<span class="count"></span>
-							</span>
-						</div>
-					</div>
-					<div class="snapshot-actions">
-						<button class="action-button restore-button" title="Restore Snapshot">
-							<span class="codicon codicon-debug-restart"></span>
-							Restore
-						</button>
-						<button class="action-button diff-button" title="View Changes">
-							<span class="codicon codicon-diff"></span>
-							Changes
-						</button>
-						<button class="action-button delete-button" title="Delete Snapshot">
-							<span class="codicon codicon-trash"></span>
-							Delete
-						</button>
-					</div>
-				</div>
-			</template>
-
-			<script nonce="${nonce}" src="${scriptUri}"></script>
-		</body>
-		</html>`;
+        <script nonce="${nonce}" src="${scriptUri}"></script>
+    </body>
+    </html>`;
 	}
 
 	private getNonce(): string {

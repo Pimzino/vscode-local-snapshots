@@ -104,23 +104,65 @@ export class SnapshotDiffWebviewProvider {
         const nonce = getNonce();
 
         return `<!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-                <link href="${styleUri}" rel="stylesheet">
-                <link href="${codiconsUri}" rel="stylesheet">
-                <title>Snapshot Diff</title>
-            </head>
-            <body>
-                <div id="diff-container">
-                    <div id="files-list"></div>
-                    <div id="diff-content"></div>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+        <link href="${styleUri}" rel="stylesheet">
+        <link href="${codiconsUri}" rel="stylesheet">
+        <title>Snapshot Diff</title>
+    </head>
+    <body>
+        <div id="diff-container">
+            <div class="global-controls">
+                <div class="controls-left">
+                    <button class="global-control expand-all" title="Expand All Files">
+                        <span class="codicon codicon-expand-all"></span>
+                        <span>Expand All</span>
+                    </button>
+                    <button class="global-control collapse-all" title="Collapse All Files">
+                        <span class="codicon codicon-collapse-all"></span>
+                        <span>Collapse All</span>
+                    </button>
                 </div>
-                <script nonce="${nonce}" src="${scriptUri}"></script>
-            </body>
-            </html>`;
+                <div class="controls-right">
+                    <button class="global-control restore-all" title="Restore All Files">
+                        <span class="codicon codicon-debug-restart"></span>
+                        <span>Restore All</span>
+                    </button>
+                </div>
+            </div>
+            <div id="files-list" class="files-list"></div>
+            
+            <template id="file-template">
+                <div class="file-group">
+                    <div class="file-header" title="Click anywhere to expand/collapse">
+                        <div class="file-path">
+                            <span class="codicon codicon-file"></span>
+                            <span class="path"></span>
+                        </div>
+                        <div class="actions">
+                            <div class="restored-indicator">
+                                <span class="codicon codicon-check"></span>
+                                <span>Restored</span>
+                            </div>
+                            <button class="restore-button" title="Restore this file">
+                                <span class="codicon codicon-debug-restart"></span>
+                                <span>Restore</span>
+                            </button>
+                            <div class="collapse-indicator" data-tooltip="Click to collapse">
+                                <span class="codicon codicon-chevron-down collapse-icon"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="diff-content expanded"></div>
+                </div>
+            </template>
+        </div>
+        <script nonce="${nonce}" src="${scriptUri}"></script>
+    </body>
+    </html>`;
     }
 }
 

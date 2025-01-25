@@ -8,9 +8,14 @@
         constructor() {
             this.container = document.getElementById('diff-container');
             this.filesContainer = document.getElementById('files-list');
-            this.diffContent = document.getElementById('diff-content');
+            this.fileTemplate = document.getElementById('file-template');
 
-            if (!this.container || !this.filesContainer || !this.diffContent) {
+            // Global controls
+            this.expandAllBtn = document.querySelector('.expand-all');
+            this.collapseAllBtn = document.querySelector('.collapse-all');
+            this.restoreAllBtn = document.querySelector('.restore-all');
+
+            if (!this.container || !this.filesContainer || !this.fileTemplate) {
                 console.error('Required DOM elements not found');
                 return;
             }
@@ -19,6 +24,11 @@
         }
 
         initialize() {
+            // Handle global controls
+            this.expandAllBtn?.addEventListener('click', () => this.expandAllFiles());
+            this.collapseAllBtn?.addEventListener('click', () => this.collapseAllFiles());
+            this.restoreAllBtn?.addEventListener('click', () => this.restoreAllFiles());
+
             window.addEventListener('message', event => {
                 const message = event.data;
                 switch (message.type) {
@@ -30,6 +40,35 @@
                         break;
                 }
             });
+        }
+
+        expandAllFiles() {
+            const fileGroups = this.filesContainer?.querySelectorAll('.file-group');
+            fileGroups?.forEach(group => {
+                const content = group.querySelector('.diff-content');
+                const header = group.querySelector('.file-header');
+                if (content && header) {
+                    content.classList.add('expanded');
+                    header.classList.remove('collapsed');
+                }
+            });
+        }
+
+        collapseAllFiles() {
+            const fileGroups = this.filesContainer?.querySelectorAll('.file-group');
+            fileGroups?.forEach(group => {
+                const content = group.querySelector('.diff-content');
+                const header = group.querySelector('.file-header');
+                if (content && header) {
+                    content.classList.remove('expanded');
+                    header.classList.add('collapsed');
+                }
+            });
+        }
+
+        restoreAllFiles() {
+            const restoreButtons = this.filesContainer?.querySelectorAll('.restore-button:not(:disabled)');
+            restoreButtons?.forEach(button => button.click());
         }
 
         handleFileRestored(filePath) {
@@ -45,117 +84,55 @@
         }
 
         renderDiff(files, snapshotName) {
-            if (!this.filesContainer) {
-                console.error('Files container not found');
-                return;
-            }
+            if (!this.filesContainer || !this.fileTemplate) return;
 
-            const filesContainer = this.filesContainer;
-            filesContainer.innerHTML = '';
-
-            // Add global controls
-            const controls = document.createElement('div');
-            controls.className = 'global-controls';
-            controls.innerHTML = `
-                <button class="global-control" id="expand-all">
-                    <span class="codicon codicon-expand-all"></span>
-                    Expand All
-                </button>
-                <button class="global-control" id="collapse-all">
-                    <span class="codicon codicon-collapse-all"></span>
-                    Collapse All
-                </button>
-            `;
-
-            // Add event listeners for global controls
-            const expandAllButton = controls.querySelector('#expand-all');
-            const collapseAllButton = controls.querySelector('#collapse-all');
-
-            if (expandAllButton) {
-                expandAllButton.addEventListener('click', () => {
-                    filesContainer.querySelectorAll('.diff-content').forEach(content => {
-                        content.classList.add('expanded');
-                    });
-                    filesContainer.querySelectorAll('.file-header').forEach(header => {
-                        header.classList.remove('collapsed');
-                    });
-                });
-            }
-
-            if (collapseAllButton) {
-                collapseAllButton.addEventListener('click', () => {
-                    filesContainer.querySelectorAll('.diff-content').forEach(content => {
-                        content.classList.remove('expanded');
-                    });
-                    filesContainer.querySelectorAll('.file-header').forEach(header => {
-                        header.classList.add('collapsed');
-                    });
-                });
-            }
-
-            filesContainer.appendChild(controls);
+            this.filesContainer.innerHTML = '';
 
             files.forEach(file => {
-                const fileGroup = document.createElement('div');
-                fileGroup.className = 'file-group';
+                const fileGroup = this.fileTemplate.content.cloneNode(true);
+                const header = fileGroup.querySelector('.file-header');
+                const content = fileGroup.querySelector('.diff-content');
+                const collapseIndicator = fileGroup.querySelector('.collapse-indicator');
 
-                const header = document.createElement('div');
-                header.className = 'file-header';
+                // Set file path
                 header.setAttribute('data-file-path', file.path);
-                header.innerHTML = `
-                    <span class="file-path">${file.path}</span>
-                    <div class="actions">
-                        <div class="restored-indicator">
-                            <span class="codicon codicon-check"></span>
-                            File Restored
-                        </div>
-                        <button class="restore-button">
-                            <span class="codicon codicon-arrow-left"></span>
-                            Restore File
-                        </button>
-                        <div class="collapse-indicator">
-                            <span class="codicon codicon-chevron-down collapse-icon"></span>
-                        </div>
-                    </div>
-                `;
+                header.querySelector('.file-path .path').textContent = file.path;
 
-                const content = document.createElement('div');
-                content.className = 'diff-content expanded';
-                
+                // Add tooltip for collapse/expand
+                collapseIndicator.setAttribute('data-tooltip', 'Click to collapse');
+
+                // Add click handler for collapse/expand on the header
+                header.addEventListener('click', (e) => {
+                    // Don't trigger if clicking the restore button
+                    if (!e.target.closest('.restore-button')) {
+                        const isCollapsed = header.classList.toggle('collapsed');
+                        content.classList.toggle('expanded');
+                        collapseIndicator.setAttribute('data-tooltip', 
+                            isCollapsed ? 'Click to expand' : 'Click to collapse'
+                        );
+                    }
+                });
+
+                // Add click handler for restore button
+                const restoreButton = header.querySelector('.restore-button');
+                restoreButton?.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    vscode.postMessage({
+                        command: 'restoreFile',
+                        filePath: file.path
+                    });
+                });
+
                 // Create diff using VS Code's diff algorithm
                 const originalLines = file.original.split('\n');
                 const modifiedLines = file.modified.split('\n');
                 const diff = this.computeDiff(originalLines, modifiedLines);
-                
                 content.innerHTML = this.renderDiffContent(diff);
 
-                // Add click handler for collapse/expand
-                const collapseIndicator = header.querySelector('.collapse-indicator');
-                if (collapseIndicator) {
-                    collapseIndicator.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        content.classList.toggle('expanded');
-                        header.classList.toggle('collapsed');
-                    });
-                }
-
-                // Add click handler for restore button
-                const restoreButton = header.querySelector('.restore-button');
-                if (restoreButton) {
-                    restoreButton.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        vscode.postMessage({
-                            command: 'restoreFile',
-                            filePath: file.path
-                        });
-                    });
-                }
-
-                fileGroup.appendChild(header);
-                fileGroup.appendChild(content);
-                filesContainer.appendChild(fileGroup);
+                this.filesContainer.appendChild(fileGroup);
             });
         }
+
 
         computeDiff(originalLines, modifiedLines) {
             const diff = [];
@@ -204,8 +181,8 @@
 
         renderDiffContent(diff) {
             return diff.map(line => {
-                const lineNumberLeft = line.originalLine || '';
-                const lineNumberRight = line.modifiedLine || '';
+                const lineNumberLeft = line.originalLine || '•';
+                const lineNumberRight = line.modifiedLine || '•';
                 const lineClass = line.type === 'unchanged' ? '' : line.type;
                 
                 return `
@@ -215,8 +192,8 @@
                             <div class="diff-line-number">${lineNumberRight}</div>
                         </div>
                         <div class="diff-line-content">
-                            <div class="diff-line-left">${line.type !== 'added' ? this.escapeHtml(line.content) : ''}</div>
-                            <div class="diff-line-right">${line.type !== 'removed' ? this.escapeHtml(line.content) : ''}</div>
+                            <div class="diff-line-left">${line.type === 'added' ? '' : this.escapeHtml(line.content)}</div>
+                            <div class="diff-line-right">${line.type === 'removed' ? '' : this.escapeHtml(line.content)}</div>
                         </div>
                     </div>
                 `;

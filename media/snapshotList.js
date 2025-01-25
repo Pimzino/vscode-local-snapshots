@@ -124,11 +124,20 @@ function createSnapshotCard(snapshot) {
   // Set snapshot name
   card.querySelector('.snapshot-title .name').textContent = snapshot.name;
 
-  // Set timestamp
-  const timestamp = new Date(snapshot.timestamp).toLocaleString();
-  card.querySelector('.snapshot-meta .timestamp').textContent = timestamp;
+  // Set timestamp with icon
+  const timestamp = new Date(snapshot.timestamp);
+  const formattedDate = timestamp.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+  const formattedTime = timestamp.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  card.querySelector('.timestamp .time').textContent = `${formattedDate} ${formattedTime}`;
 
-  // Set file count
+  // Set file count with icon
   const fileCount = `${snapshot.fileCount} file${snapshot.fileCount !== 1 ? 's' : ''}`;
   card.querySelector('.file-count .count').textContent = fileCount;
 
