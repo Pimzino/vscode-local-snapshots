@@ -109,6 +109,13 @@ export class SnapshotDiffWebviewProvider {
             vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css')
         );
 
+        // Get URIs for SVG icons
+        const iconUris = {
+            arrowUp: webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'icons', 'arrow-up.svg')),
+            arrowDown: webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'icons', 'arrow-down.svg')),
+            close: webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'icons', 'close.svg'))
+        };
+
         const nonce = getNonce();
 
         return `<!DOCTYPE html>
@@ -116,10 +123,15 @@ export class SnapshotDiffWebviewProvider {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} data:;">
         <link href="${styleUri}" rel="stylesheet">
         <link href="${codiconsUri}" rel="stylesheet">
         <title>Snapshot Diff</title>
+        <style nonce="${nonce}">
+            #prev-match::before { -webkit-mask-image: url('${iconUris.arrowUp}'); mask-image: url('${iconUris.arrowUp}'); }
+            #next-match::before { -webkit-mask-image: url('${iconUris.arrowDown}'); mask-image: url('${iconUris.arrowDown}'); }
+            #clear-search::before { -webkit-mask-image: url('${iconUris.close}'); mask-image: url('${iconUris.close}'); }
+        </style>
     </head>
     <body>
         <div id="diff-container">
@@ -133,6 +145,18 @@ export class SnapshotDiffWebviewProvider {
                         <span class="codicon codicon-collapse-all"></span>
                         <span>Collapse All</span>
                     </button>
+                </div>
+                <div class="search-container">
+                    <div class="search-input-container">
+                        <span class="codicon codicon-search"></span>
+                        <input type="text" id="search-input" placeholder="Search in diff (Ctrl+F)" />
+                        <span class="search-count" id="search-count"></span>
+                    </div>
+                    <div class="search-controls">
+                        <button class="search-nav-button" id="prev-match" title="Previous match (Shift+Enter)"></button>
+                        <button class="search-nav-button" id="next-match" title="Next match (Enter)"></button>
+                        <button class="search-nav-button" id="clear-search" title="Clear search"></button>
+                    </div>
                 </div>
                 <div class="controls-right">
                     <button class="global-control restore-all" title="Restore All Files">

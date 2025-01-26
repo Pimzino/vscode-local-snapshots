@@ -25,6 +25,7 @@ body {
     height: 100vh;
     padding: var(--spacing-md);
     gap: var(--spacing-md);
+    position: relative;
 }
 
 .global-controls {
@@ -36,6 +37,10 @@ body {
     border: 1px solid var(--vscode-widget-border);
     border-radius: var(--card-radius);
     box-shadow: var(--card-shadow);
+    position: sticky;
+    top: var(--spacing-md);
+    z-index: 100;
+    margin-bottom: var(--spacing-md);
 }
 
 .controls-left,
@@ -522,4 +527,152 @@ body {
 
 .diff-line-horizontal.removed .diff-line-prefix {
     color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.search-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex: 1;
+    margin: 0 var(--spacing-lg);
+}
+
+.search-input-container {
+    display: flex;
+    align-items: center;
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border, transparent);
+    border-radius: 4px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    flex: 1;
+    gap: var(--spacing-sm);
+    transition: border-color var(--transition-duration) ease;
+}
+
+.search-input-container:focus-within {
+    border-color: var(--vscode-focusBorder);
+}
+
+.search-input-container .codicon {
+    color: var(--vscode-input-placeholderForeground);
+    font-size: 14px;
+}
+
+#search-input {
+    background: none;
+    border: none;
+    color: var(--vscode-input-foreground);
+    font-family: var(--vscode-font-family);
+    font-size: 13px;
+    outline: none;
+    width: 100%;
+    min-width: 200px;
+}
+
+#search-input::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+}
+
+.search-count {
+    color: var(--vscode-input-placeholderForeground);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.search-controls {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.search-nav-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: none;
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    transition: all var(--transition-duration) ease;
+    position: relative;
+}
+
+.search-nav-button:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.search-nav-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.search-nav-button::before {
+    content: '';
+    display: block;
+    width: 16px;
+    height: 16px;
+    background-color: currentColor;
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+}
+
+#prev-match::before {
+    -webkit-mask-image: url('./icons/arrow-up.svg');
+    mask-image: url('./icons/arrow-up.svg');
+}
+
+#next-match::before {
+    -webkit-mask-image: url('./icons/arrow-down.svg');
+    mask-image: url('./icons/arrow-down.svg');
+}
+
+#clear-search::before {
+    -webkit-mask-image: url('./icons/close.svg');
+    mask-image: url('./icons/close.svg');
+}
+
+.search-wrapper {
+    display: inline;
+    white-space: pre;
+}
+
+.search-highlight {
+    display: inline;
+    background: var(--vscode-editor-findMatchHighlightBackground);
+    outline: 1px solid var(--vscode-editor-findMatchHighlightBorder);
+    border-radius: 2px;
+    white-space: pre;
+}
+
+.search-highlight.active {
+    background: var(--vscode-editor-findMatchBackground);
+    outline: 1px solid var(--vscode-editor-findMatchBorder);
+}
+
+/* Ensure search highlights don't break the diff view layout */
+.diff-line-left .search-wrapper,
+.diff-line-right .search-wrapper,
+.diff-line-horizontal .diff-line-content .search-wrapper {
+    display: inline;
+    white-space: pre;
+}
+
+.diff-line-left .search-highlight,
+.diff-line-right .search-highlight,
+.diff-line-horizontal .diff-line-content .search-highlight {
+    display: inline;
+    white-space: pre;
+    padding: 1px 0;
+}
+
+.files-list {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: var(--spacing-md);
 }

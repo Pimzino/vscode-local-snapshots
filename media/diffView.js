@@ -24,6 +24,24 @@
             /** @type {HTMLTemplateElement | null} */
             this.fileTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById('file-template'));
 
+            // Search elements
+            /** @type {HTMLInputElement | null} */
+            this.searchInput = /** @type {HTMLInputElement} */ (document.getElementById('search-input'));
+            /** @type {HTMLElement | null} */
+            this.searchCount = document.getElementById('search-count');
+            /** @type {HTMLButtonElement | null} */
+            this.prevMatchBtn = /** @type {HTMLButtonElement} */ (document.getElementById('prev-match'));
+            /** @type {HTMLButtonElement | null} */
+            this.nextMatchBtn = /** @type {HTMLButtonElement} */ (document.getElementById('next-match'));
+            /** @type {HTMLButtonElement | null} */
+            this.clearSearchBtn = /** @type {HTMLButtonElement} */ (document.getElementById('clear-search'));
+
+            // Search state
+            /** @type {number} */
+            this.currentMatchIndex = -1;
+            /** @type {HTMLElement[]} */
+            this.currentMatches = [];
+
             // Global controls
             /** @type {HTMLElement | null} */
             this.expandAllBtn = document.querySelector('.expand-all');
@@ -57,6 +75,296 @@
                     case 'fileRestored': {
                         this.handleFileRestored(message.filePath);
                         break;
+                    }
+                }
+            });
+
+            // Initialize search functionality
+            this.initializeSearch();
+        }
+
+        initializeSearch() {
+            if (!this.searchInput || !this.prevMatchBtn || !this.nextMatchBtn || !this.clearSearchBtn) {
+                return;
+            }
+
+            // Handle search input
+            this.searchInput.addEventListener('input', () => {
+                this.performSearch();
+            });
+
+            // Handle keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    if (e.key === 'f') {
+                        e.preventDefault();
+                        this.searchInput?.focus();
+                    }
+                }
+                if (document.activeElement === this.searchInput) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                            this.navigateMatches('prev');
+                        } else {
+                            this.navigateMatches('next');
+                        }
+                    }
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        this.clearSearch();
+                    }
+                }
+            });
+
+            // Handle navigation buttons
+            this.prevMatchBtn.addEventListener('click', () => this.navigateMatches('prev'));
+            this.nextMatchBtn.addEventListener('click', () => this.navigateMatches('next'));
+            this.clearSearchBtn.addEventListener('click', () => this.clearSearch());
+        }
+
+        /**
+         * Performs a search across all file names and diff content
+         */
+        performSearch() {
+            if (!this.searchInput || !this.searchCount) {
+                return;
+            }
+
+            const query = this.searchInput.value.trim().toLowerCase();
+            
+            // Clear previous highlights
+            this.clearHighlights();
+
+            if (!query) {
+                this.updateSearchCount(0, 0);
+                return;
+            }
+
+            this.currentMatches = [];
+            this.currentMatchIndex = -1;
+
+            // Search in file names and content
+            const fileGroups = this.filesContainer?.querySelectorAll('.file-group');
+            fileGroups?.forEach(group => {
+                // Search in file name
+                const pathElement = group.querySelector('.file-path .path');
+                if (pathElement && pathElement.textContent?.toLowerCase().includes(query)) {
+                    this.highlightText(/** @type {HTMLElement} */ (pathElement), query);
+                }
+
+                // Search in diff content
+                const diffContent = group.querySelector('.diff-content');
+                if (diffContent) {
+                    // Handle both vertical and horizontal diff views
+                    const verticalLines = diffContent.querySelectorAll('.diff-line-left, .diff-line-right');
+                    const horizontalLines = diffContent.querySelectorAll('.diff-line-horizontal .diff-line-content');
+                    
+                    const searchInLines = (lines) => {
+                        lines.forEach(line => {
+                            const text = line.textContent || '';
+                            if (text.toLowerCase().includes(query)) {
+                                // Expand the file group to show matches
+                                diffContent.classList.add('expanded');
+                                group.querySelector('.file-header')?.classList.remove('collapsed');
+
+                                // Create a wrapper for the highlighted content
+                                const wrapper = document.createElement('span');
+                                wrapper.className = 'search-wrapper';
+                                const content = text;
+                                
+                                // Split and highlight the matching text
+                                const lowerContent = content.toLowerCase();
+                                let lastIndex = 0;
+                                let html = '';
+                                
+                                let matchIndex = lowerContent.indexOf(query);
+                                while (matchIndex !== -1) {
+                                    // Add text before match
+                                    html += this.escapeHtml(content.slice(lastIndex, matchIndex));
+                                    
+                                    // Add highlighted match
+                                    const highlight = document.createElement('span');
+                                    highlight.className = 'search-highlight';
+                                    highlight.textContent = content.slice(matchIndex, matchIndex + query.length);
+                                    html += highlight.outerHTML;
+                                    
+                                    lastIndex = matchIndex + query.length;
+                                    matchIndex = lowerContent.indexOf(query, lastIndex);
+                                }
+                                
+                                // Add remaining text
+                                if (lastIndex < content.length) {
+                                    html += this.escapeHtml(content.slice(lastIndex));
+                                }
+                                
+                                wrapper.innerHTML = html;
+                                line.innerHTML = wrapper.outerHTML;
+
+                                // Add the newly created highlights to our matches array
+                                const highlights = line.querySelectorAll('.search-highlight');
+                                highlights.forEach(highlight => {
+                                    this.currentMatches.push(/** @type {HTMLElement} */ (highlight));
+                                });
+                            }
+                        });
+                    };
+
+                    searchInLines(verticalLines);
+                    searchInLines(horizontalLines);
+                }
+            });
+
+            // Update match count and navigation
+            this.updateSearchCount(this.currentMatches.length, 0);
+            if (this.currentMatches.length > 0) {
+                this.navigateMatches('next');
+            }
+        }
+
+        /**
+         * Highlights text matches within an element
+         * @param {HTMLElement} element
+         * @param {string} query
+         */
+        highlightText(element, query) {
+            const text = element.textContent || '';
+            const lowerText = text.toLowerCase();
+            let lastIndex = 0;
+            const fragments = [];
+
+            let matchIndex = lowerText.indexOf(query);
+            while (matchIndex !== -1) {
+                // Add text before match
+                if (matchIndex > lastIndex) {
+                    fragments.push(document.createTextNode(text.slice(lastIndex, matchIndex)));
+                }
+
+                // Add highlighted match
+                const highlight = document.createElement('span');
+                highlight.className = 'search-highlight';
+                highlight.textContent = text.slice(matchIndex, matchIndex + query.length);
+                fragments.push(highlight);
+                this.currentMatches.push(highlight);
+
+                lastIndex = matchIndex + query.length;
+                matchIndex = lowerText.indexOf(query, lastIndex);
+            }
+
+            // Add remaining text
+            if (lastIndex < text.length) {
+                fragments.push(document.createTextNode(text.slice(lastIndex)));
+            }
+
+            // Replace element content
+            element.textContent = '';
+            fragments.forEach(fragment => element.appendChild(fragment));
+        }
+
+        /**
+         * Updates the search count display
+         * @param {number} total
+         * @param {number} current
+         */
+        updateSearchCount(total, current) {
+            if (!this.searchCount || !this.prevMatchBtn || !this.nextMatchBtn) {
+                return;
+            }
+
+            if (total === 0) {
+                this.searchCount.textContent = 'No matches';
+                this.prevMatchBtn.disabled = true;
+                this.nextMatchBtn.disabled = true;
+            } else {
+                this.searchCount.textContent = `${current + 1} of ${total}`;
+                this.prevMatchBtn.disabled = false;
+                this.nextMatchBtn.disabled = false;
+            }
+        }
+
+        /**
+         * Navigates between matches
+         * @param {'next' | 'prev'} direction
+         */
+        navigateMatches(direction) {
+            if (this.currentMatches.length === 0) {
+                return;
+            }
+
+            // Remove active class from current match
+            if (this.currentMatchIndex >= 0 && this.currentMatchIndex < this.currentMatches.length) {
+                this.currentMatches[this.currentMatchIndex].classList.remove('active');
+            }
+
+            // Update current match index
+            if (direction === 'next') {
+                this.currentMatchIndex = (this.currentMatchIndex + 1) % this.currentMatches.length;
+            } else {
+                this.currentMatchIndex = (this.currentMatchIndex - 1 + this.currentMatches.length) % this.currentMatches.length;
+            }
+
+            // Highlight new current match
+            const currentMatch = this.currentMatches[this.currentMatchIndex];
+            currentMatch.classList.add('active');
+
+            // Ensure the match is visible
+            const fileGroup = currentMatch.closest('.file-group');
+            if (fileGroup) {
+                // Expand the file group if it's collapsed
+                const diffContent = fileGroup.querySelector('.diff-content');
+                const header = fileGroup.querySelector('.file-header');
+                if (diffContent && header) {
+                    diffContent.classList.add('expanded');
+                    header.classList.remove('collapsed');
+                }
+
+                // Scroll the match into view
+                currentMatch.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                    inline: 'nearest'
+                });
+            }
+
+            // Update count display
+            this.updateSearchCount(this.currentMatches.length, this.currentMatchIndex);
+        }
+
+        /**
+         * Clears the search
+         */
+        clearSearch() {
+            if (!this.searchInput) {
+                return;
+            }
+
+            this.searchInput.value = '';
+            this.clearHighlights();
+            this.updateSearchCount(0, 0);
+            this.currentMatchIndex = -1;
+            this.currentMatches = [];
+        }
+
+        /**
+         * Clears all search highlights
+         */
+        clearHighlights() {
+            // Clear file path highlights
+            const pathHighlights = this.container?.querySelectorAll('.file-path .path .search-highlight');
+            pathHighlights?.forEach(highlight => {
+                const parent = highlight.parentNode;
+                if (parent) {
+                    parent.replaceChild(document.createTextNode(highlight.textContent || ''), highlight);
+                }
+            });
+
+            // Clear diff content highlights
+            const diffWrappers = this.container?.querySelectorAll('.search-wrapper');
+            diffWrappers?.forEach(wrapper => {
+                if (wrapper.textContent) {
+                    const parent = wrapper.parentNode;
+                    if (parent) {
+                        parent.textContent = wrapper.textContent;
                     }
                 }
             });
