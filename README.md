@@ -37,7 +37,7 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 * `local-snapshots.enableTimedSnapshots`: Enable/disable automatic snapshots at regular intervals (default: `false`)
 * `local-snapshots.timedSnapshotInterval`: Set the interval between automatic snapshots in seconds (default: `300`, minimum: `30`)
 * `local-snapshots.showTimedSnapshotNotifications`: Show notifications when timed snapshots are created (default: `true`)
-* `local-snapshots.skipUnchangedSnapshots`: Skip creating automatic snapshots when no files have changed (default: `false`)
+* `local-snapshots.skipUnchangedSnapshots`: Skip creating snapshots when no files have changed, applies to both automatic and manual snapshots (default: `false`)
 
 ### Storage Management
 * `local-snapshots.limitSnapshotCount`: Enable/disable maximum snapshot limit (default: `false`)

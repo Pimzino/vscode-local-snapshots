@@ -63,38 +63,14 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register the settings command
 	context.subscriptions.push(
-		vscode.commands.registerCommand('local-snapshots.openSettings', async () => {
-			// Try the modern settings approach first
-			try {
-				await vscode.commands.executeCommand(
-					'workbench.action.openSettings',
-					'localSnapshots'
-				);
-			} catch (error) {
-				// Fallback for older versions or different forks
-				try {
-					await vscode.commands.executeCommand(
-						'workbench.action.openSettings',
-						'@ext:Pimzino.local-snapshots'
-					);
-				} catch (secondError) {
-					// Final fallback
-					try {
-						await vscode.commands.executeCommand(
-							'workbench.action.openSettingsJson'
-						);
-						vscode.window.showInformationMessage(
-							'Search for "localSnapshots" to find extension settings'
-						);
-					} catch (fallbackError) {
-						vscode.window.showErrorMessage(
-							'Unable to open settings. Please open settings manually and search for "localSnapshots"'
-						);
-					}
-				}
-			}
+		vscode.commands.registerCommand('local-snapshots.openSettings', () => {
+			vscode.commands.executeCommand(
+				'workbench.action.openSettings',
+				'@ext:Pimzino.local-snapshots'
+			);
 		})
 	);
+
 
 	// Add all disposables to context
 	context.subscriptions.push(webviewDisposable, ...commandDisposables);

@@ -37,65 +37,53 @@
     "configuration": {
       "title": "Local Snapshots",
       "properties": {
-      "localSnapshots": {
-        "type": "object",
-        "title": "Local Snapshots",
-        "description": "Local Snapshots configuration",
-        "properties": {
-        "enablePreSaveSnapshots": {
+        "localSnapshots.enablePreSaveSnapshots": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Automatically create snapshots before saving files",
-          "scope": "window"
+          "description": "Automatically create snapshots before saving files"
         },
-        "enableTimedSnapshots": {
+        "localSnapshots.enableTimedSnapshots": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Automatically create snapshots at regular intervals",
-          "scope": "window",
-          "order": 1
+          "description": "Automatically create snapshots at regular intervals"
         },
-        "timedSnapshotInterval": {
+        "localSnapshots.timedSnapshotInterval": {
           "type": "number",
           "default": 300,
           "minimum": 30,
-          "markdownDescription": "Interval in seconds between automatic snapshots (minimum 30 seconds)",
-          "scope": "window",
-          "order": 2
+          "description": "Interval in seconds between automatic snapshots (minimum 30 seconds)"
         },
-        "showTimedSnapshotNotifications": {
+        "localSnapshots.showTimedSnapshotNotifications": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Show notifications when timed snapshots are created",
-          "scope": "window",
-          "order": 3
+          "description": "Show notifications when timed snapshots are created"
         },
-        "skipUnchangedSnapshots": {
+        "localSnapshots.skipUnchangedSnapshots": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Skip creating automatic snapshots when no files have changed",
-          "scope": "window",
-          "order": 4
+          "description": "Skip creating snapshots when no files have changed. This applies to both automatic and manual snapshots.",
+          "scope": "window"
         },
-        "limitSnapshotCount": {
+        "localSnapshots.limitSnapshotCount": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Limit the maximum number of snapshots",
-          "scope": "window",
-          "order": 5
+          "description": "Limit the maximum number of snapshots"
         },
-        "maxSnapshotCount": {
+        "localSnapshots.maxSnapshotCount": {
           "type": "number",
           "default": 10,
           "minimum": 1,
-          "markdownDescription": "Maximum number of snapshots to keep (oldest will be deleted when limit is reached)",
-          "scope": "window",
-          "order": 6
+          "description": "Maximum number of snapshots to keep (oldest will be deleted when limit is reached)"
+        },
+        "localSnapshots.diffViewStyle": {
+          "type": "string",
+          "enum": ["side-by-side", "inline", "both"],
+          "default": "side-by-side",
+          "description": "Choose how to display file differences: side-by-side (split view), inline (unified view), or both views"
         }
-        }
-      }
       }
     },
+
     "viewsContainers": {
       "activitybar": [
         {

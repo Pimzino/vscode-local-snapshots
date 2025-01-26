@@ -1,8 +1,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { FileSnapshot, Snapshot } from '../types/interfaces';
+import { FileSnapshot, Snapshot, DiffFile } from '../types/interfaces';
 import { SnapshotWebviewProvider } from '../views/SnapshotWebviewProvider';
 import { SnapshotDiffWebviewProvider } from '../views/SnapshotDiffWebviewProvider';
+
+// Constants for file processing
+const BATCH_SIZE = 10; // Process files in batches of 10
+
 
 export class SnapshotManager {
   private context: vscode.ExtensionContext;
@@ -70,11 +74,11 @@ export class SnapshotManager {
           await this.enforceSnapshotLimit();
         } else {
           // Revert the setting if user cancels
-          await this.getConfig().update(
-          'limitSnapshotCount',
-          false,
-          vscode.ConfigurationTarget.Global
-          );
+            await vscode.workspace.getConfiguration().update(
+            'localSnapshots.limitSnapshotCount',
+            false,
+            vscode.ConfigurationTarget.Global
+            );
         }
         }
       }
@@ -106,84 +110,104 @@ export class SnapshotManager {
     );
   }
 
-  private getConfig() {
-    return vscode.workspace.getConfiguration('localSnapshots');
+  private async readFileContent(uri: vscode.Uri): Promise<string> {
+    try {
+        const document = await vscode.workspace.openTextDocument(uri);
+        return document.getText();
+    } catch (error) {
+        console.error(`Failed to read file: ${uri.fsPath}`, error);
+        throw error;
+    }
   }
 
+
+
   private isPreSaveSnapshotsEnabled(): boolean {
-    return this.getConfig().get('enablePreSaveSnapshots', false);
+    return vscode.workspace.getConfiguration().get('localSnapshots.enablePreSaveSnapshots', false);
   }
 
   private isTimedSnapshotsEnabled(): boolean {
-    return this.getConfig().get('enableTimedSnapshots', false);
+    return vscode.workspace.getConfiguration().get('localSnapshots.enableTimedSnapshots', false);
   }
 
   private getTimedSnapshotInterval(): number {
-    return this.getConfig().get('timedSnapshotInterval', 300);
+    return vscode.workspace.getConfiguration().get('localSnapshots.timedSnapshotInterval', 300);
   }
 
   private shouldShowTimedSnapshotNotifications(): boolean {
-    return this.getConfig().get('showTimedSnapshotNotifications', true);
+    return vscode.workspace.getConfiguration().get('localSnapshots.showTimedSnapshotNotifications', true);
   }
 
   private shouldSkipUnchangedSnapshots(): boolean {
-    return this.getConfig().get('skipUnchangedSnapshots', false);
+    return vscode.workspace.getConfiguration().get('localSnapshots.skipUnchangedSnapshots', false);
   }
 
   private async hasChangedFiles(): Promise<boolean> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
-      return false;
+        return false;
     }
 
     const lastSnapshot = this.getSnapshots().sort((a, b) => b.timestamp - a.timestamp)[0];
     if (!lastSnapshot) {
-      return true; // If no previous snapshot exists, consider it as changed
+        return true; // If no previous snapshot exists, consider it as changed
     }
 
     for (const folder of workspaceFolders) {
-      const pattern = new vscode.RelativePattern(folder, '**/*');
-      const uris = await vscode.workspace.findFiles(
-        pattern,
-        '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
-      );
+        const pattern = new vscode.RelativePattern(folder, '**/*');
+        const uris = await vscode.workspace.findFiles(
+            pattern,
+            '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
+        );
 
-      for (const uri of uris) {
-        try {
-          const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
-          if (this.shouldSkipFile(relativePath)) {
-            continue;
-          }
+        for (let i = 0; i < uris.length; i += BATCH_SIZE) {
+            const batch = uris.slice(i, i + BATCH_SIZE);
+            
+            for (const uri of batch) {
+                try {
+                    const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
+                    if (this.shouldSkipFile(relativePath)) {
+                        continue;
+                    }
 
-          const document = await vscode.workspace.openTextDocument(uri);
-          const currentContent = document.getText();
-          
-          // Find the corresponding file in the last snapshot
-          const lastFile = lastSnapshot.files.find(f => f.relativePath === relativePath);
-          
-          // If file is new or content has changed, return true
-          if (!lastFile || lastFile.content !== currentContent) {
-            return true;
-          }
-        } catch (error) {
-          console.error(`Failed to read file: ${uri.fsPath}`, error);
+                    const lastFile = lastSnapshot.files.find(f => f.relativePath === relativePath);
+                    if (!lastFile) {
+                        return true; // New file found
+                    }
+
+                    try {
+                        const content = await this.readFileContent(uri);
+                        if (content !== lastFile.content) {
+                            return true; // Content changed
+                        }
+                    } catch (error) {
+                        console.error(`Failed to compare file: ${uri.fsPath}`, error);
+                        continue;
+                    }
+                } catch (error) {
+                    console.error(`Failed to process file: ${uri.fsPath}`, error);
+                    return true; // Consider changed if we can't read the file
+                }
+            }
+
+            // Add a small delay between batches to allow garbage collection
+            await new Promise(resolve => setTimeout(resolve, 100));
         }
-      }
 
-      // Check for deleted files
-      for (const lastFile of lastSnapshot.files) {
-        const fullPath = path.join(folder.uri.fsPath, lastFile.relativePath);
-        try {
-          await vscode.workspace.fs.stat(vscode.Uri.file(fullPath));
-        } catch {
-          // File doesn't exist anymore, consider it as a change
-          return true;
+        // Check for deleted files
+        for (const lastFile of lastSnapshot.files) {
+            const fullPath = path.join(folder.uri.fsPath, lastFile.relativePath);
+            try {
+                await vscode.workspace.fs.stat(vscode.Uri.file(fullPath));
+            } catch {
+                return true; // File doesn't exist anymore
+            }
         }
-      }
     }
 
     return false;
-  }
+}
+
 
   private setupTimedSnapshots() {
     // Clear any existing intervals
@@ -368,14 +392,15 @@ export class SnapshotManager {
       console.log(`Creating snapshot for ${relativePath}`);
 
       const snapshotName = path.basename(document.fileName);
-      const snapshot: Snapshot = {
+        const snapshot: Snapshot = {
         name: snapshotName,
         timestamp: Date.now(),
         files: [{
           content: previousContent,
           relativePath
         }]
-      };
+        };
+
 
       const snapshots = this.getSnapshots();
       snapshots.push(snapshot);
@@ -393,17 +418,24 @@ export class SnapshotManager {
 
   private shouldSkipFile(relativePath: string): boolean {
     const skipPatterns = [
-      /node_modules/,
-      /\.git/,
-      /dist/,
-      /out/,
-      /\.vs/,
-      /\.vscode/,
-      /\.DS_Store/,
-      /Thumbs\.db/,
-      /\.log$/,
-      /package-lock\.json$/
+        // System files
+        /\.DS_Store/,
+        /Thumbs\.db/,
+        /desktop\.ini/,
+
+        // Binary and non-text files
+        /\.(jpg|jpeg|png|gif|ico|webp|bmp)$/i,
+        /\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i,
+        /\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i,
+        /\.(zip|rar|7z|tar|gz)$/i,
+        /\.(exe|dll|so|dylib)$/i,
+        /\.(ttf|otf|eot|woff|woff2)$/i,
+        /\.(pyc|pyo|pyd)$/i,
+        /\.(class|jar)$/i,
+        /\.(db|sqlite|mdb)$/i,
+        /\.(bin|dat|bak)$/i
     ];
+
     return skipPatterns.some(pattern => pattern.test(relativePath));
   }
 
@@ -451,35 +483,52 @@ export class SnapshotManager {
   }
 
   private isSnapshotLimitEnabled(): boolean {
-    return this.getConfig().get('limitSnapshotCount', false);
+    return vscode.workspace.getConfiguration().get('localSnapshots.limitSnapshotCount', false);
   }
 
   private getMaxSnapshotCount(): number {
-    return this.getConfig().get('maxSnapshotCount', 10);
+    return vscode.workspace.getConfiguration().get('localSnapshots.maxSnapshotCount', 10);
   }
 
   private async enforceSnapshotLimit(): Promise<void> {
     if (!this.isSnapshotLimitEnabled()) {
-      return;
+        return;
     }
 
     const maxCount = this.getMaxSnapshotCount();
     const snapshots = this.getSnapshots();
 
     if (snapshots.length > maxCount) {
-      // Sort snapshots by timestamp (newest first)
-      const sortedSnapshots = snapshots.sort((a, b) => b.timestamp - a.timestamp);
-      // Keep only the newest maxCount snapshots
-      const updatedSnapshots = sortedSnapshots.slice(0, maxCount);
-      await this.saveSnapshots(updatedSnapshots);
-      
-      // Refresh the webview to show the updated list
-      this.webviewProvider?.refreshList();
+        const deletedCount = snapshots.length - maxCount;
+        const result = await vscode.window.showWarningMessage(
+            `Enforcing snapshot limit will delete ${deletedCount} older snapshot(s). Do you want to continue?`,
+            { modal: true },
+            'Yes',
+            'No'
+        );
 
-      const deletedCount = snapshots.length - maxCount;
-      vscode.window.showInformationMessage(
-        `Deleted ${deletedCount} old snapshot${deletedCount === 1 ? '' : 's'} to maintain the configured limit of ${maxCount}.`
-      );
+        if (result === 'Yes') {
+            // Sort snapshots by timestamp (newest first)
+            const sortedSnapshots = snapshots.sort((a, b) => b.timestamp - a.timestamp);
+            // Keep only the newest maxCount snapshots
+            const updatedSnapshots = sortedSnapshots.slice(0, maxCount);
+            await this.saveSnapshots(updatedSnapshots);
+            
+            // Refresh the webview to show the updated list
+            this.webviewProvider?.refreshList();
+
+            vscode.window.showInformationMessage(
+                `Deleted ${deletedCount} old snapshot${deletedCount === 1 ? '' : 's'} to maintain the configured limit of ${maxCount}.`
+            );
+        } else {
+            // If user cancels, disable the snapshot limit
+            await vscode.workspace.getConfiguration().update(
+                'localSnapshots.limitSnapshotCount',
+                false,
+                vscode.ConfigurationTarget.Global
+            );
+            vscode.window.showInformationMessage('Snapshot limit has been disabled to prevent data loss.');
+        }
     }
   }
 
@@ -488,72 +537,154 @@ export class SnapshotManager {
     snapshots.push(snapshot);
 
     if (this.isSnapshotLimitEnabled()) {
-      const maxCount = this.getMaxSnapshotCount();
-      if (snapshots.length > maxCount) {
-        // Sort by timestamp (newest first) and keep only maxCount snapshots
-        const sortedSnapshots = snapshots.sort((a, b) => b.timestamp - a.timestamp);
-        await this.saveSnapshots(sortedSnapshots.slice(0, maxCount));
-      } else {
-        await this.saveSnapshots(snapshots);
-      }
+        const maxCount = this.getMaxSnapshotCount();
+        if (snapshots.length > maxCount) {
+            // Ask for confirmation before deleting snapshots
+            const result = await vscode.window.showWarningMessage(
+                `Adding this snapshot will exceed your snapshot limit (${maxCount}). ${snapshots.length - maxCount} older snapshot(s) will be deleted. Do you want to continue?`,
+                { modal: true },
+                'Yes',
+                'No'
+            );
+
+            if (result === 'Yes') {
+                // Sort by timestamp (newest first) and keep only maxCount snapshots
+                const sortedSnapshots = snapshots.sort((a, b) => b.timestamp - a.timestamp);
+                await this.saveSnapshots(sortedSnapshots.slice(0, maxCount));
+            } else {
+                // If user cancels, disable the snapshot limit and save all snapshots
+                await vscode.workspace.getConfiguration().update(
+                    'localSnapshots.limitSnapshotCount',
+                    false,
+                    vscode.ConfigurationTarget.Global
+                );
+                await this.saveSnapshots(snapshots);
+                vscode.window.showInformationMessage('Snapshot limit has been disabled to prevent data loss.');
+            }
+        } else {
+            await this.saveSnapshots(snapshots);
+        }
     } else {
-      await this.saveSnapshots(snapshots);
+        await this.saveSnapshots(snapshots);
     }
   }
 
-  async takeSnapshot(name?: string): Promise<void> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
-      throw new Error('No workspace folder is open');
+  private async processFilesInBatches(files: vscode.Uri[], workspaceFolder: vscode.WorkspaceFolder, progress: vscode.Progress<{ message?: string; increment?: number }>, totalFiles: number): Promise<FileSnapshot[]> {
+    const results: FileSnapshot[] = [];
+    let processedFiles = 0;
+    let skippedFiles = 0;
+
+    // Process files in batches
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+        const batch = files.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+            batch.map(async (uri) => {
+                try {
+                    const relativePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+                    if (this.shouldSkipFile(relativePath)) {
+                        skippedFiles++;
+                        return null;
+                    }
+
+                    const content = await this.readFileContent(uri);
+                    processedFiles++;
+                    progress.report({
+                        message: `Processing files (${processedFiles}/${totalFiles - skippedFiles})`,
+                        increment: (100 / (totalFiles - skippedFiles))
+                    });
+
+                    return {
+                        content,
+                        relativePath
+                    };
+                } catch (error) {
+                    console.error(`Failed to process file: ${uri.fsPath}`, error);
+                    skippedFiles++;
+                    return null;
+                }
+            })
+        );
+
+        results.push(...batchResults.filter((result): result is FileSnapshot => result !== null));
+
+        // Add a small delay between batches to allow garbage collection
+        await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    const projectName = this.getProjectName();
-    const timestamp = this.formatTimestamp();
+    if (skippedFiles > 0) {
+        vscode.window.showInformationMessage(`Snapshot completed. Skipped ${skippedFiles} non-text file(s).`);
+    }
 
-    const snapshotName = name 
-      ? `${projectName} - ${name}`
-      : `Quick Snapshot - ${timestamp}`;
+    return results;
 
-    const files: FileSnapshot[] = [];
+  }
 
-    for (const folder of workspaceFolders) {
-      const pattern = new vscode.RelativePattern(folder, '**/*');
-      const uris = await vscode.workspace.findFiles(
-        pattern,
-        '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
-      );
+  async takeSnapshot(name?: string): Promise<void> {
+    return vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Taking Snapshot...',
+      cancellable: false
+    }, async (progress) => {
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders) {
+        throw new Error('No workspace folder is open');
+      }
 
-      for (const uri of uris) {
-        try {
-          const document = await vscode.workspace.openTextDocument(uri);
-          const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
-          if (!this.shouldSkipFile(relativePath)) {
-            files.push({
-              content: document.getText(),
-              relativePath
-            });
-          }
-        } catch (error) {
-          console.error(`Failed to read file: ${uri.fsPath}`, error);
+      progress.report({ message: 'Checking for changes...' });
+      
+      if (this.shouldSkipUnchangedSnapshots()) {
+        const hasChanges = await this.hasChangedFiles();
+        if (!hasChanges) {
+          vscode.window.showInformationMessage('Snapshot skipped - no changes detected');
+          return;
         }
       }
-    }
 
-    // Only create snapshot if there are files to snapshot
-    if (files.length > 0) {
-      const snapshot: Snapshot = {
-        name: snapshotName,
-        timestamp: Date.now(),
-        files
-      };
+      progress.report({ message: 'Scanning workspace files...' });
+      const projectName = this.getProjectName();
+      const timestamp = this.formatTimestamp();
 
-      await this.addSnapshot(snapshot);
+      const snapshotName = name 
+        ? `${projectName} - ${name}`
+        : `Quick Snapshot - ${timestamp}`;
 
-      // Refresh the webview after saving
-      this.webviewProvider?.refreshList();
-    } else {
-      throw new Error('No files found to snapshot');
-    }
+      let totalFiles = 0;
+      const allUris: vscode.Uri[] = [];
+
+      // First collect all URIs
+      for (const folder of workspaceFolders) {
+        const pattern = new vscode.RelativePattern(folder, '**/*');
+        const uris = await vscode.workspace.findFiles(
+          pattern,
+          '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
+        );
+        allUris.push(...uris);
+        totalFiles += uris.length;
+      }
+
+      // Process files in batches for each workspace folder
+      const files: FileSnapshot[] = [];
+      for (const folder of workspaceFolders) {
+        const folderUris = allUris.filter(uri => uri.fsPath.startsWith(folder.uri.fsPath));
+        const folderFiles = await this.processFilesInBatches(folderUris, folder, progress, totalFiles);
+        files.push(...folderFiles);
+      }
+
+      if (files.length > 0) {
+        progress.report({ message: 'Saving snapshot...' });
+        const snapshot: Snapshot = {
+          name: snapshotName,
+          timestamp: Date.now(),
+          files
+        };
+
+        await this.addSnapshot(snapshot);
+        this.webviewProvider?.refreshList();
+      } else {
+        throw new Error('No files found to snapshot');
+      }
+    });
+
   }
 
   async deleteSnapshot(snapshotName: string, timestamp: number): Promise<void> {
@@ -563,37 +694,54 @@ export class SnapshotManager {
   }
 
   async restoreSnapshot(snapshotName: string, timestamp: number, selectedFiles?: string[]): Promise<void> {
-    const snapshots = this.getSnapshots();
-    const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
+    return vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Restoring Snapshot...',
+        cancellable: false
+    }, async (progress) => {
+        const snapshots = this.getSnapshots();
+        const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
 
-    if (!snapshot) {
-      throw new Error('Snapshot not found');
-    }
-
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
-      throw new Error('No workspace folder is open');
-    }
-
-    const filesToRestore = selectedFiles 
-      ? snapshot.files.filter(f => selectedFiles.includes(f.relativePath))
-      : snapshot.files;
-
-    for (const file of filesToRestore) {
-      for (const folder of workspaceFolders) {
-        const fullPath = path.join(folder.uri.fsPath, file.relativePath);
-        try {
-          const uri = vscode.Uri.file(fullPath);
-          await vscode.workspace.fs.writeFile(
-            uri,
-            Buffer.from(file.content, 'utf8')
-          );
-        } catch (error) {
-          console.error(`Failed to restore file: ${fullPath}`, error);
-          vscode.window.showErrorMessage(`Failed to restore file: ${file.relativePath}`);
+        if (!snapshot) {
+            throw new Error('Snapshot not found');
         }
-      }
-    }
+
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            throw new Error('No workspace folder is open');
+        }
+
+        const filesToRestore = selectedFiles 
+            ? snapshot.files.filter(f => selectedFiles.includes(f.relativePath))
+            : snapshot.files;
+
+        let processedFiles = 0;
+        const totalFiles = filesToRestore.length;
+
+        progress.report({ message: 'Preparing to restore files...' });
+
+        for (const file of filesToRestore) {
+            for (const folder of workspaceFolders) {
+                const fullPath = path.join(folder.uri.fsPath, file.relativePath);
+                try {
+                    const uri = vscode.Uri.file(fullPath);
+                    await vscode.workspace.fs.writeFile(
+                      uri,
+                      Buffer.from(file.content, 'utf8')
+
+                    );
+                    processedFiles++;
+                    progress.report({ 
+                        message: `Restoring files (${processedFiles}/${totalFiles})`,
+                        increment: (100 / totalFiles)
+                    });
+                } catch (error) {
+                    console.error(`Failed to restore file: ${fullPath}`, error);
+                    vscode.window.showErrorMessage(`Failed to restore file: ${file.relativePath}`);
+                }
+            }
+        }
+    });
   }
 
   async getSnapshotFiles(snapshotName: string, timestamp: number): Promise<string[]> {
@@ -605,171 +753,240 @@ export class SnapshotManager {
     return snapshot.files.map(f => f.relativePath);
   }
 
+
+
+
   async showDiff(snapshotName: string, timestamp: number): Promise<void> {
-    const snapshots = this.getSnapshots();
-    const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
+    return vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Preparing Diff View...',
+        cancellable: false
+    }, async (progress) => {
+        const snapshots = this.getSnapshots();
+        const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
 
-    if (!snapshot || !snapshot.files.length) {
-      throw new Error('Snapshot not found or empty');
-    }
+        if (!snapshot || !snapshot.files.length) {
+            throw new Error('Snapshot not found or empty');
+        }
 
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
-      throw new Error('No workspace folder is open');
-    }
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            throw new Error('No workspace folder is open');
+        }
 
-    try {
-      // Get current content for all files and identify which ones have changes
-      const changedFiles = await Promise.all(
-        snapshot.files.map(async (file: FileSnapshot) => {
-          try {
-            const currentUri = vscode.Uri.file(path.join(workspaceFolders[0].uri.fsPath, file.relativePath));
-            const currentDocument = await vscode.workspace.openTextDocument(currentUri);
-            const currentContent = currentDocument.getText();
-            
-            // Only include files that have differences
-            if (currentContent !== file.content) {
-              return {
-                relativePath: file.relativePath,
-                originalContent: file.content,
-                modifiedContent: currentContent
-              };
+        try {
+            progress.report({ message: 'Analyzing files...' });
+            let processedFiles = 0;
+            const totalFiles = snapshot.files.length;
+
+            const changedFiles = await Promise.all(
+              snapshot.files.map(async (file: FileSnapshot) => {
+                try {
+                    processedFiles++;
+                    progress.report({ 
+                        message: `Comparing files (${processedFiles}/${totalFiles})`,
+                        increment: (100 / totalFiles)
+                    });
+
+                    const currentUri = vscode.Uri.file(path.join(workspaceFolders[0].uri.fsPath, file.relativePath));
+                    
+                    try {
+                        await vscode.workspace.fs.stat(currentUri);
+                        const currentContent = await this.readFileContent(currentUri);
+
+                        if (currentContent !== file.content) {
+                            return {
+                                relativePath: file.relativePath,
+                                status: 'modified',
+                                original: file.content,
+                                modified: currentContent
+                            } as DiffFile;
+                        }
+                        return null;
+                    } catch {
+                        // File doesn't exist anymore
+                        return {
+                            relativePath: file.relativePath,
+                            status: 'deleted',
+                            original: file.content
+                        } as DiffFile;
+                    }
+                } catch (error) {
+                    console.error(`Failed to compare file: ${file.relativePath}`, error);
+                    return null;
+                }
+              })
+            );
+
+            // Filter out null entries (unchanged files)
+            const filesToDiff = changedFiles.filter((file): file is DiffFile => file !== null);
+
+            if (filesToDiff.length === 0) {
+                vscode.window.showInformationMessage('No differences found in any files.');
+                return;
             }
-            return null;
-          } catch (error) {
-            console.error(`Failed to read current file: ${file.relativePath}`, error);
-            return null;
-          }
-        })
-      );
 
-      // Filter out null entries (unchanged files)
-      const filesToDiff = changedFiles.filter(file => file !== null);
+            progress.report({ message: 'Opening diff view...' });
+            if (this.diffProvider) {
+                await this.diffProvider.showDiff(filesToDiff, snapshotName, timestamp);
+            }
+        } catch (error) {
+            console.error('Failed to show diff:', error);
+            vscode.window.showErrorMessage('Failed to show diff view');
+        }
+    });
+}
 
-      if (filesToDiff.length === 0) {
-        vscode.window.showInformationMessage('No differences found in any files.');
-        return;
-      }
-
-      // Show the diffs in our custom webview
-      if (this.diffProvider) {
-        await this.diffProvider.showDiff(filesToDiff, snapshotName, timestamp);
-      }
-    } catch (error) {
-      console.error('Failed to show diff:', error);
-      vscode.window.showErrorMessage('Failed to show diff view');
-    }
-  }
 
   private async restoreFile(file: FileSnapshot): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
-      throw new Error('No workspace folder is open');
+        throw new Error('No workspace folder is open');
     }
 
     const fullPath = path.join(workspaceFolders[0].uri.fsPath, file.relativePath);
     try {
-      await vscode.workspace.fs.writeFile(
-        vscode.Uri.file(fullPath),
-        Buffer.from(file.content, 'utf8')
-      );
+        await vscode.workspace.fs.writeFile(
+            vscode.Uri.file(fullPath),
+            Buffer.from(file.content, 'utf8')
+        );
     } catch (error) {
-      console.error(`Failed to restore file: ${file.relativePath}`, error);
-      throw new Error(`Failed to restore file: ${file.relativePath}`);
+        console.error(`Failed to restore file: ${file.relativePath}`, error);
+        throw new Error(`Failed to restore file: ${file.relativePath}`);
     }
   }
+
 
   async takeFileSnapshot(uri: vscode.Uri): Promise<void> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
-      throw new Error('No workspace folder is open');
-    }
+    return vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Taking File Snapshot...',
+        cancellable: false
+    }, async (progress) => {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            throw new Error('No workspace folder is open');
+        }
 
-    const workspaceFolder = workspaceFolders.find(folder => 
-      uri.fsPath.startsWith(folder.uri.fsPath)
-    );
+        progress.report({ message: 'Analyzing file...' });
 
-    if (!workspaceFolder) {
-      throw new Error('File is not in the current workspace');
-    }
+        const workspaceFolder = workspaceFolders.find(folder => 
+            uri.fsPath.startsWith(folder.uri.fsPath)
+        );
 
-    const relativePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
-    if (this.shouldSkipFile(relativePath)) {
-      throw new Error('This file type is excluded from snapshots');
-    }
+        if (!workspaceFolder) {
+            throw new Error('File is not in the current workspace');
+        }
 
-    try {
-      const document = await vscode.workspace.openTextDocument(uri);
-      const fileName = path.basename(uri.fsPath);
-      const timestamp = this.formatTimestamp();
-      
-      const snapshot: Snapshot = {
-        name: `File Snapshot - ${fileName} - ${timestamp}`,
-        timestamp: Date.now(),
-        files: [{
-          content: document.getText(),
-          relativePath
-        }]
-      };
+        const relativePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+        if (this.shouldSkipFile(relativePath)) {
+            throw new Error('This file type is excluded from snapshots');
+        }
 
-      await this.addSnapshot(snapshot);
-      this.webviewProvider?.refreshList();
+        if (this.shouldSkipUnchangedSnapshots()) {
+            progress.report({ message: 'Checking for changes...' });
+            const document = await vscode.workspace.openTextDocument(uri);
+            const content = document.getText();
+            
+            // Check if this file exists in the last snapshot
+            const snapshots = this.getSnapshots();
+            const lastSnapshot = snapshots.sort((a, b) => b.timestamp - a.timestamp)[0];
+            
+            if (lastSnapshot) {
+                const lastFile = lastSnapshot.files.find(f => f.relativePath === relativePath);
+                if (lastFile && lastFile.content === content) {
+                    vscode.window.showInformationMessage('File snapshot skipped - no changes detected');
+                    return;
+                }
+            }
+        }
 
-    } catch (error) {
-      console.error('Failed to take file snapshot:', error);
-      throw new Error('Failed to read file contents');
-    }
-  }
+        try {
+            progress.report({ message: 'Reading file content...' });
+            const content = await this.readFileContent(uri);
+            const fileName = path.basename(uri.fsPath);
+            const timestamp = this.formatTimestamp();
+
+            const snapshot: Snapshot = {
+              name: `File Snapshot - ${fileName} - ${timestamp}`,
+              timestamp: Date.now(),
+              files: [{
+              content,
+              relativePath
+              }]
+            };
+
+
+            progress.report({ message: 'Saving snapshot...' });
+            await this.addSnapshot(snapshot);
+            this.webviewProvider?.refreshList();
+
+        } catch (error) {
+            console.error('Failed to take file snapshot:', error);
+            throw new Error('Failed to read file contents');
+        }
+    });
+}
+
 
   async takeDirectorySnapshot(uri: vscode.Uri): Promise<void> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
-      throw new Error('No workspace folder is open');
-    }
-
-    const workspaceFolder = workspaceFolders.find(folder => 
-      uri.fsPath.startsWith(folder.uri.fsPath)
-    );
-
-    if (!workspaceFolder) {
-      throw new Error('Directory is not in the current workspace');
-    }
-
-    const files: FileSnapshot[] = [];
-    const pattern = new vscode.RelativePattern(uri, '**/*');
-    const uris = await vscode.workspace.findFiles(pattern);
-
-    for (const fileUri of uris) {
-      try {
-        const relativePath = path.relative(workspaceFolder.uri.fsPath, fileUri.fsPath);
-        if (!this.shouldSkipFile(relativePath)) {
-          const document = await vscode.workspace.openTextDocument(fileUri);
-          files.push({
-            content: document.getText(),
-            relativePath
-          });
+    return vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Taking Directory Snapshot...',
+        cancellable: false
+    }, async (progress) => {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            throw new Error('No workspace folder is open');
         }
-      } catch (error) {
-        console.error(`Failed to read file: ${fileUri.fsPath}`, error);
-      }
-    }
 
-    if (files.length === 0) {
-      throw new Error('No files found to snapshot in this directory');
-    }
+        progress.report({ message: 'Analyzing directory...' });
 
-    const dirName = path.basename(uri.fsPath);
-    const timestamp = this.formatTimestamp();
-    
-    const snapshot: Snapshot = {
-      name: `Directory Snapshot - ${dirName} - ${timestamp}`,
-      timestamp: Date.now(),
-      files
-    };
+        if (this.shouldSkipUnchangedSnapshots()) {
+            progress.report({ message: 'Checking for changes...' });
+            const hasChanges = await this.hasChangedFiles();
+            if (!hasChanges) {
+                vscode.window.showInformationMessage('Directory snapshot skipped - no changes detected');
+                return;
+            }
+        }
 
-    await this.addSnapshot(snapshot);
-    this.webviewProvider?.refreshList();
+        const workspaceFolder = workspaceFolders.find(folder => 
+            uri.fsPath.startsWith(folder.uri.fsPath)
+        );
+
+        if (!workspaceFolder) {
+            throw new Error('Directory is not in the current workspace');
+        }
+
+        const pattern = new vscode.RelativePattern(uri, '**/*');
+        const uris = await vscode.workspace.findFiles(pattern);
+        const totalFiles = uris.length;
+
+        progress.report({ message: 'Scanning files...' });
+
+        // Process files in batches
+        const files = await this.processFilesInBatches(uris, workspaceFolder, progress, totalFiles);
+
+        if (files.length === 0) {
+            throw new Error('No files found to snapshot in this directory');
+        }
+
+        progress.report({ message: 'Saving snapshot...' });
+        const dirName = path.basename(uri.fsPath);
+        const timestamp = this.formatTimestamp();
+        
+        const snapshot: Snapshot = {
+            name: `Directory Snapshot - ${dirName} - ${timestamp}`,
+            timestamp: Date.now(),
+            files
+        };
+
+        await this.addSnapshot(snapshot);
+        this.webviewProvider?.refreshList();
+    });
   }
+
 
   dispose() {
     if (this.timedSnapshotInterval) {

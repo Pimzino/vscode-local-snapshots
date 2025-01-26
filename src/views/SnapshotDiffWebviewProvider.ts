@@ -3,9 +3,11 @@ import * as path from 'path';
 
 interface DiffFile {
     relativePath: string;
-    originalContent: string;
-    modifiedContent: string;
+    status: 'modified' | 'deleted';
+    original?: string;
+    modified?: string;
 }
+
 
 export class SnapshotDiffWebviewProvider {
     private _panel?: vscode.WebviewPanel;
@@ -31,6 +33,9 @@ export class SnapshotDiffWebviewProvider {
     public async showDiff(files: DiffFile[], snapshotName: string, timestamp: number) {
         this._snapshotName = snapshotName;
         this._timestamp = timestamp;
+
+        // Get user's diff view style preference
+        const diffViewStyle = vscode.workspace.getConfiguration('localSnapshots').get('diffViewStyle', 'side-by-side');
 
         // If we already have a panel, show it
         if (this._panel) {
@@ -76,15 +81,18 @@ export class SnapshotDiffWebviewProvider {
         // Convert the files to a format suitable for the webview
         const diffData = files.map(file => ({
             path: file.relativePath,
-            original: file.originalContent,
-            modified: file.modifiedContent
+            original: file.original || '',
+            modified: file.modified || '',
+            status: file.status
         }));
+
 
         // Send the diff data to the webview
         await this._panel.webview.postMessage({
             type: 'showDiff',
             snapshotName,
-            files: diffData
+            files: diffData,
+            diffViewStyle
         });
     }
 
