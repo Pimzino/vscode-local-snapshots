@@ -998,4 +998,57 @@ export class SnapshotManager {
     this.statusBarItem.dispose();
     this.disposables.forEach(d => d.dispose());
   }
+
+  /**
+   * Deletes all snapshots
+   */
+  public async deleteAllSnapshots(): Promise<void> {
+    const snapshots = this.getSnapshots();
+    if (snapshots.length === 0) {
+        return;
+    }
+
+    // Clear the snapshots from storage
+    await this.context.globalState.update(this.SNAPSHOTS_KEY, []);
+
+    // Notify webview of changes
+    this.webviewProvider?.refreshList();
+  }
+
+  /**
+   * Renames a snapshot while ensuring the new name is unique
+   * @param oldName Current name of the snapshot
+   * @param timestamp Timestamp of the snapshot to rename
+   * @param newName New name for the snapshot
+   * @throws Error if a snapshot with the new name already exists
+   */
+  public async renameSnapshot(oldName: string, timestamp: number, newName: string): Promise<void> {
+    if (!newName.trim()) {
+      throw new Error('Snapshot name cannot be empty');
+    }
+
+    const snapshots = this.getSnapshots();
+    const snapshotToRename = snapshots.find(s => s.name === oldName && s.timestamp === timestamp);
+    
+    if (!snapshotToRename) {
+      throw new Error('Snapshot not found');
+    }
+
+    // Check if another snapshot (excluding the current one) has the same name
+    const duplicateName = snapshots.some(s => 
+      s.name === newName && 
+      !(s.name === oldName && s.timestamp === timestamp)
+    );
+
+    if (duplicateName) {
+      throw new Error('A snapshot with this name already exists');
+    }
+
+    // Update the snapshot name
+    snapshotToRename.name = newName;
+    await this.saveSnapshots(snapshots);
+
+    // Refresh the webview to show the updated name
+    this.webviewProvider?.refreshList();
+  }
 }

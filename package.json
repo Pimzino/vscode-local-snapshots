@@ -123,6 +123,12 @@
         "icon": "$(zap)"
       },
       {
+        "command": "local-snapshots.deleteAllSnapshots",
+        "title": "Delete All Snapshots",
+        "category": "Local Snapshots",
+        "icon": "$(trash)"
+      },
+      {
         "command": "local-snapshots.openSettings",
         "title": "Open Settings",
         "category": "Local Snapshots",
@@ -147,6 +153,12 @@
         "command": "local-snapshots.snapshotDirectory",
         "title": "Take Snapshot of Directory",
         "category": "Local Snapshots"
+      },
+      {
+        "command": "local-snapshots.renameSnapshot",
+        "title": "Rename Snapshot",
+        "category": "Local Snapshots",
+        "icon": "$(edit)"
       }
     ],
     "menus": {
@@ -162,9 +174,14 @@
           "group": "navigation@2"
         },
         {
-          "command": "local-snapshots.openSettings",
+          "command": "local-snapshots.deleteAllSnapshots",
           "when": "view == local-snapshots-list",
           "group": "navigation@3"
+        },
+        {
+          "command": "local-snapshots.openSettings",
+          "when": "view == local-snapshots-list",
+          "group": "navigation@4"
         }
       ],
       "explorer/context": [

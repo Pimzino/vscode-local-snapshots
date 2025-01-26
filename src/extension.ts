@@ -36,6 +36,9 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.window.showInformationMessage(`Deleted snapshot: ${snapshotName}`);
 			webviewProvider.refreshList();
 		},
+		async (snapshotName: string, timestamp: number) => {
+			await vscode.commands.executeCommand('local-snapshots.renameSnapshot', snapshotName, timestamp);
+		},
 		async () => snapshotManager.getSnapshots(),
 		async (name: string, timestamp: number) => snapshotManager.getSnapshotFiles(name, timestamp),
 		async (name: string, timestamp: number) => snapshotManager.showDiff(name, timestamp)
@@ -58,6 +61,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const commandDisposables = registerSnapshotCommands(
 		context,
 		snapshotManager,
+		() => webviewProvider.refreshList(),
 		() => webviewProvider.refreshList()
 	);
 

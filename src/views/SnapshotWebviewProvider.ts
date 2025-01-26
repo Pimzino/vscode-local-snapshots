@@ -10,6 +10,7 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 		private readonly _onTakeSnapshot: () => Promise<void>,
 		private readonly _onRestoreSnapshot: (name: string, timestamp: number, selectedFiles?: string[]) => Promise<void>,
 		private readonly _onDeleteSnapshot: (name: string, timestamp: number) => Promise<void>,
+		private readonly _onRenameSnapshot: (name: string, timestamp: number) => Promise<void>,
 		private readonly _getSnapshots: () => Promise<Snapshot[]>,
 		private readonly _getSnapshotFiles: (name: string, timestamp: number) => Promise<string[]>,
 		private readonly _showDiff: (name: string, timestamp: number) => Promise<void>
@@ -67,6 +68,9 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 					break;
 				case 'deleteSnapshot':
 					await this._onDeleteSnapshot(data.name, data.timestamp);
+					break;
+				case 'renameSnapshot':
+					await this._onRenameSnapshot(data.name, data.timestamp);
 					break;
 				case 'refresh':
 					await this.refreshList();
@@ -199,6 +203,10 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 			<button class="action-button diff-button" title="View Changes">
 				<span class="codicon codicon-diff"></span>
 				<span>View Diffs</span>
+			</button>
+			<button class="action-button rename-button" title="Rename Snapshot">
+				<span class="codicon codicon-edit"></span>
+				<span>Rename</span>
 			</button>
 			<button class="action-button delete-button" title="Delete Snapshot">
 				<span class="codicon codicon-trash"></span>

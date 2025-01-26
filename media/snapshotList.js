@@ -158,6 +158,14 @@ function createSnapshotCard(snapshot) {
     });
   });
 
+  card.querySelector('.rename-button').addEventListener('click', () => {
+    vscode.postMessage({ 
+      type: 'renameSnapshot',
+      name: snapshot.name,
+      timestamp: snapshot.timestamp
+    });
+  });
+
   card.querySelector('.delete-button').addEventListener('click', () => {
     vscode.postMessage({ 
       type: 'deleteSnapshot',

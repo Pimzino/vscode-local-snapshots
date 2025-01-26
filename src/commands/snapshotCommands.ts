@@ -5,7 +5,8 @@ import { SnapshotManager } from '../managers/SnapshotManager';
 export function registerSnapshotCommands(
 	context: vscode.ExtensionContext,
 	snapshotManager: SnapshotManager,
-	refreshWebview: () => void
+	refreshWebview: () => void,
+	onSnapshotsChanged: () => void
 ): vscode.Disposable[] {
 	return [
 		vscode.commands.registerCommand('local-snapshots.takeSnapshot', async () => {
@@ -71,6 +72,49 @@ export function registerSnapshotCommands(
 					vscode.window.showInformationMessage(
 						`Restored ${selectedFiles.length} files from snapshot: ${selectedSnapshot.label}`
 					);
+				}
+			}
+		}),
+
+		vscode.commands.registerCommand('local-snapshots.deleteAllSnapshots', async () => {
+			const confirmation = await vscode.window.showInputBox({
+				prompt: 'Type "confirm" to delete all snapshots. This action cannot be undone.',
+				placeHolder: 'confirm',
+				validateInput: (value) => {
+					return value === 'confirm' ? null : 'Please type "confirm" to proceed';
+				}
+			});
+
+			if (confirmation === 'confirm') {
+				try {
+					await snapshotManager.deleteAllSnapshots();
+					vscode.window.showInformationMessage('All snapshots have been deleted');
+					onSnapshotsChanged();
+				} catch (error) {
+					vscode.window.showErrorMessage('Failed to delete snapshots: ' + (error instanceof Error ? error.message : 'Unknown error'));
+				}
+			}
+		}),
+
+		vscode.commands.registerCommand('local-snapshots.renameSnapshot', async (snapshotName: string, timestamp: number) => {
+			const newName = await vscode.window.showInputBox({
+				prompt: 'Enter new name for the snapshot',
+				placeHolder: 'New snapshot name',
+				value: snapshotName,
+				validateInput: (value) => {
+					if (!value.trim()) {
+						return 'Name cannot be empty';
+					}
+					return null;
+				}
+			});
+
+			if (newName) {
+				try {
+					await snapshotManager.renameSnapshot(snapshotName, timestamp, newName);
+					vscode.window.showInformationMessage(`Renamed snapshot to: ${newName}`);
+				} catch (error) {
+					vscode.window.showErrorMessage((error instanceof Error ? error.message : 'Failed to rename snapshot'));
 				}
 			}
 		})
