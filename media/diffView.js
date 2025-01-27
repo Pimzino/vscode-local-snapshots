@@ -453,6 +453,18 @@
                     pathElement.textContent = file.path;
                 }
 
+                // Set file status
+                const statusElement = header.querySelector('.file-status');
+                if (statusElement) {
+                    if (file.status === 'created') {
+                        statusElement.textContent = 'Created';
+                        statusElement.classList.add('created');
+                    } else if (file.status === 'deleted') {
+                        statusElement.textContent = 'Deleted';
+                        statusElement.classList.add('deleted');
+                    }
+                }
+
                 // Add tooltip for collapse/expand
                 collapseIndicator.setAttribute('data-tooltip', 'Click to collapse');
 

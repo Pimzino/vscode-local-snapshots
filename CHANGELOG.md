@@ -2,6 +2,16 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.4] - 2024-01-27
+
+### Changed
+- Updated extension title in sidebar from "Snapshots" to "Local Snapshots" for better clarity and consistency
+
+### Fixed
+- Fixed visibility of file status labels in diff view:
+	- Added proper styling for "Created" and "Deleted" status indicators
+	- Improved contrast and readability of status labels
+
 ## [0.0.3] - 2024-01-27
 
 ### Fixed

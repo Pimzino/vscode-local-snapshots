@@ -2,7 +2,7 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Take and Restore snapshots of your workspace files.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
@@ -119,7 +119,7 @@
       "local-snapshots-sidebar": [
         {
           "id": "local-snapshots-list",
-          "name": "Snapshots",
+          "name": "Local Snapshots",
           "type": "webview",
           "visibility": "visible"
         }

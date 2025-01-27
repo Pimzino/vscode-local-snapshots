@@ -178,6 +178,7 @@ export class SnapshotDiffWebviewProvider {
                             <span class="path"></span>
                         </div>
                         <div class="actions">
+                            <div class="file-status"></div>
                             <div class="restored-indicator">
                                 <span class="codicon codicon-check"></span>
                                 <span>Restored</span>
