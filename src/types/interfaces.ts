@@ -12,7 +12,7 @@ export interface Snapshot {
 export interface DiffFile {
 	relativePath: string;
 	path: string;
-	status: 'modified' | 'deleted';
+	status: 'modified' | 'deleted' | 'created';
 	original?: string;
 	modified?: string;
 }

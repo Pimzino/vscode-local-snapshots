@@ -220,57 +220,82 @@ body {
 }
 
 .snapshot-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--spacing-xs);
-  margin-top: 0;
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
 }
 
-.action-button {
-  display: inline-flex;
+.action-button-round {
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-xs);
-  padding: 3px var(--spacing-sm);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
   background-color: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 500;
   transition: all var(--transition-duration) ease;
-  text-align: center;
-  height: 22px;
-  min-width: 0;
+  position: relative;
 }
 
-.action-button .codicon {
-  font-size: 13px;
+.action-button-round:hover {
+  transform: translateY(-2px);
 }
 
-.action-button:hover {
-  background-color: var(--vscode-button-secondaryHoverBackground);
-  transform: translateY(-1px);
+.action-button-round .codicon {
+  font-size: 16px;
 }
 
-.restore-button {
+.action-button-round:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.action-button-round.restore-button {
   background-color: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
 }
 
-.restore-button:hover {
+.action-button-round.restore-button:hover {
   background-color: var(--vscode-button-hoverBackground);
 }
 
-.delete-button {
+.action-button-round.delete-button {
   background-color: var(--vscode-errorForeground);
   color: var(--vscode-button-foreground);
   opacity: 0.8;
 }
 
-.delete-button:hover {
+.action-button-round.delete-button:hover {
   opacity: 1;
+}
+
+@media (max-width: 400px) {
+  .snapshot-actions {
+    gap: var(--spacing-sm);
+  }
+  
+  .action-button-round {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .action-button-round .codicon {
+    font-size: 14px;
+  }
 }
 
 /* Empty state */

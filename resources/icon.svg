@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background -->
+    <rect width="256" height="256" fill="#1e1e1e"/>
+    
+    <!-- Camera body with lens cutout -->
+    <path d="M204 192H52C46.5 192 42 187.5 42 182V82C42 76.5 46.5 72 52 72H82L102 52H154L174 72H204C209.5 72 214 76.5 214 82V182C214 187.5 209.5 192 204 192Z
+             M128 84C103.2 84 83 104.2 83 129C83 153.8 103.2 174 128 174C152.8 174 173 153.8 173 129C173 104.2 152.8 84 128 84Z" 
+          fill="#ffffff"
+          fill-rule="evenodd"/>
+          
+    <!-- Outer lens ring -->
+    <circle cx="128" cy="129" r="45" 
+            fill="none" 
+            stroke="#ffffff" 
+            stroke-width="4"/>
+            
+    <!-- Inner lens elements -->
+    <circle cx="128" cy="129" r="30" 
+            fill="none" 
+            stroke="#ffffff" 
+            stroke-width="3"/>
+            
+    <!-- Lens center -->
+    <circle cx="128" cy="129" r="15" 
+            fill="none" 
+            stroke="#ffffff" 
+            stroke-width="2"/>
+            
+    <!-- Flash -->
+    <rect x="184" y="92" width="16" height="16" 
+          fill="#ffffff"/>
+          
+    <!-- Text "Local Snapshots" -->
+    <text x="128" y="236" 
+          font-family="Segoe UI, -apple-system, sans-serif" 
+          font-size="24" 
+          font-weight="600"
+          fill="#ffffff" 
+          text-anchor="middle">
+        Local Snapshots
+    </text>
+</svg> 

@@ -1,3 +1,26 @@
-<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-	<path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-4-4h-4v-2h4v2zm0-4H9v-2h6v2z"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<!-- Camera body with lens cutout -->
+	<path d="M20 19H4C3.45 19 3 18.55 3 18V7C3 6.45 3.45 6 4 6H7L9 4H15L17 6H20C20.55 6 21 6.45 21 7V18C21 18.55 20.55 19 20 19Z
+			 M12 7.5C9.51 7.5 7.5 9.51 7.5 12C7.5 14.49 9.51 16.5 12 16.5C14.49 16.5 16.5 14.49 16.5 12C16.5 9.51 14.49 7.5 12 7.5Z" 
+		  fill="currentColor"
+		  fill-rule="evenodd"/>
+	<!-- Outer lens ring -->
+	<circle cx="12" cy="12" r="4.5" 
+			  fill="none" 
+			  stroke="currentColor" 
+			  stroke-width="1.5"/>
+	<!-- Inner lens elements -->
+	<circle cx="12" cy="12" r="3" 
+			  fill="none" 
+			  stroke="currentColor" 
+			  stroke-width="1"/>
+	<!-- Lens center -->
+	<circle cx="12" cy="12" r="1.5" 
+			  fill="none" 
+			  stroke="currentColor" 
+			  stroke-width="1"/>
+	<!-- Flash -->
+	<rect x="16" y="8" width="2" height="2" 
+		  fill="currentColor"/>
 </svg>

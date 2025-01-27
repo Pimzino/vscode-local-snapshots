@@ -31,17 +31,14 @@ export function activate(context: vscode.ExtensionContext) {
 				`Restored ${selectedFiles ? selectedFiles.length : 'all'} files from snapshot: ${snapshotName}`
 			);
 		},
-		async (snapshotName: string, timestamp: number) => {
-			await snapshotManager.deleteSnapshot(snapshotName, timestamp);
-			vscode.window.showInformationMessage(`Deleted snapshot: ${snapshotName}`);
-			webviewProvider.refreshList();
-		},
+		snapshotManager.deleteSnapshot.bind(snapshotManager),
 		async (snapshotName: string, timestamp: number) => {
 			await vscode.commands.executeCommand('local-snapshots.renameSnapshot', snapshotName, timestamp);
 		},
 		async () => snapshotManager.getSnapshots(),
 		async (name: string, timestamp: number) => snapshotManager.getSnapshotFiles(name, timestamp),
 		async (name: string, timestamp: number) => snapshotManager.showDiff(name, timestamp)
+
 	);
 
 	snapshotManager.setWebviewProvider(webviewProvider);

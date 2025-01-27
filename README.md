@@ -13,9 +13,18 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 
 ### 🔍 Advanced Snapshot Management
 - **Visual Diff View**: See exactly what changed between snapshots and current files
+  - Side-by-side comparison
+  - Inline unified view
+  - File-by-file navigation
+  - Direct file restoration from diff view
+  - Search within diffs
+  - Previous/Next match navigation
+  - Match count indicator
 - **Selective Restore**: Choose specific files to restore from a snapshot
 - **Snapshot Filtering**: Search and filter snapshots by name, date, or file count
 - **Snapshot Limits**: Optionally limit the number of snapshots to manage storage
+- **Rename Snapshots**: Easily rename snapshots with duplicate name validation
+- **Delete Snapshots**: Remove individual snapshots or clear all at once
 
 ### ⚡ Quick Actions
 - **Context Menu Integration**: Right-click files or folders to take snapshots
@@ -43,6 +52,9 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 * `local-snapshots.limitSnapshotCount`: Enable/disable maximum snapshot limit (default: `false`)
 * `local-snapshots.maxSnapshotCount`: Maximum number of snapshots to keep (default: `10`, minimum: `1`)
 
+### Display Settings
+* `local-snapshots.diffViewStyle`: Choose how to display file differences: side-by-side, inline, or both views (default: `side-by-side`)
+
 ## Usage Tips
 
 ### Taking Snapshots
@@ -56,6 +68,7 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 - View diffs before restoring to verify changes
 - Use selective restore to recover specific files
 - Clean up old snapshots regularly using the snapshot limit feature
+- Rename snapshots to keep them organized and meaningful
 
 ### Keyboard Shortcuts
 Create your own keyboard shortcuts for any of these commands:
@@ -70,16 +83,11 @@ Create your own keyboard shortcuts for any of these commands:
 - No additional dependencies required
 
 ## Known Issues
-Please report any issues on our [GitHub repository](https://github.com/yourusername/local-snapshots/issues).
+Please report any issues on our [GitHub repository](https://github.com/Pimzino/local-snapshots/issues).
 
 ## Release Notes
 
-### 0.0.1
-- Initial release
-- Basic snapshot functionality
-- Automatic snapshot features
-- Diff view implementation
-- Filtering and management features
+See our [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 ---
 

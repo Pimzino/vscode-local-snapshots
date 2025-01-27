@@ -77,24 +77,17 @@ export function registerSnapshotCommands(
 		}),
 
 		vscode.commands.registerCommand('local-snapshots.deleteAllSnapshots', async () => {
-			const confirmation = await vscode.window.showInputBox({
-				prompt: 'Type "confirm" to delete all snapshots. This action cannot be undone.',
-				placeHolder: 'confirm',
-				validateInput: (value) => {
-					return value === 'confirm' ? null : 'Please type "confirm" to proceed';
-				}
-			});
-
-			if (confirmation === 'confirm') {
-				try {
-					await snapshotManager.deleteAllSnapshots();
-					vscode.window.showInformationMessage('All snapshots have been deleted');
+			try {
+				const deleted = await snapshotManager.deleteAllSnapshots();
+				if (deleted) {
 					onSnapshotsChanged();
-				} catch (error) {
-					vscode.window.showErrorMessage('Failed to delete snapshots: ' + (error instanceof Error ? error.message : 'Unknown error'));
 				}
+			} catch (error) {
+				vscode.window.showErrorMessage('Failed to delete snapshots: ' + (error instanceof Error ? error.message : 'Unknown error'));
 			}
 		}),
+
+
 
 		vscode.commands.registerCommand('local-snapshots.renameSnapshot', async (snapshotName: string, timestamp: number) => {
 			const newName = await vscode.window.showInputBox({

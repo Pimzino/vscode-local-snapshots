@@ -2,17 +2,17 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Take and Restore snapshots of your workspace files.",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/local-snapshots"
+    "url": "https://github.com/Pimzino/local-snapshots"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/local-snapshots/issues"
+    "url": "https://github.com/Pimzino/local-snapshots/issues"
   },
-  "homepage": "https://github.com/yourusername/local-snapshots#readme",
+  "homepage": "https://github.com/Pimzino/local-snapshots#readme",
   "keywords": [
     "snapshot",
     "backup",
@@ -20,14 +20,31 @@
     "file history",
     "diff",
     "restore",
-    "local backup"
+    "local backup",
+    "file versioning",
+    "workspace backup",
+    "code history"
+  ],
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "icon": "resources/icon.png",
+  "badges": [
+    {
+      "url": "https://img.shields.io/github/license/Pimzino/local-snapshots",
+      "href": "https://github.com/Pimzino/local-snapshots/blob/main/LICENSE",
+      "description": "MIT License"
+    }
   ],
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
     "Other",
-    "SCM"
+    "Programming Languages",
+    "Formatters",
+    "Education"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -80,6 +97,11 @@
           "enum": ["side-by-side", "inline", "both"],
           "default": "side-by-side",
           "description": "Choose how to display file differences: side-by-side (split view), inline (unified view), or both views"
+        },
+        "localSnapshots.enableDeleteProtection": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show confirmation dialog when deleting snapshots. Can be disabled in settings."
         }
       }
     },
@@ -219,7 +241,8 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "prebuild": "node scripts/copy-codicons.js"
   },
   "devDependencies": {
     "@types/vscode": "^1.74.0",
@@ -233,7 +256,8 @@
     "webpack": "^5.95.0",
     "webpack-cli": "^5.1.4",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/codicons": "^0.0.35"
   }
 }
 

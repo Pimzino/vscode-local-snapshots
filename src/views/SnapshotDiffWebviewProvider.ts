@@ -1,13 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-
-interface DiffFile {
-    relativePath: string;
-    status: 'modified' | 'deleted';
-    original?: string;
-    modified?: string;
-}
-
+import { DiffFile } from '../types/interfaces';
 
 export class SnapshotDiffWebviewProvider {
     private _panel?: vscode.WebviewPanel;
@@ -106,7 +99,11 @@ export class SnapshotDiffWebviewProvider {
         );
 
         const codiconsUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css')
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'codicons', 'codicon.css')
+        );
+
+        const codiconsFontUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'codicons', 'codicon.ttf')
         );
 
         // Get URIs for SVG icons
@@ -116,14 +113,20 @@ export class SnapshotDiffWebviewProvider {
             close: webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'icons', 'close.svg'))
         };
 
-        const nonce = getNonce();
+        const nonce = this.getNonce();
 
         return `<!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} data:;">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+        <style>
+            @font-face {
+                font-family: "codicon";
+                src: url("${codiconsFontUri}") format("truetype");
+            }
+        </style>
         <link href="${styleUri}" rel="stylesheet">
         <link href="${codiconsUri}" rel="stylesheet">
         <title>Snapshot Diff</title>
@@ -196,13 +199,13 @@ export class SnapshotDiffWebviewProvider {
     </body>
     </html>`;
     }
-}
 
-function getNonce() {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    private getNonce(): string {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < 32; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
     }
-    return text;
 } 

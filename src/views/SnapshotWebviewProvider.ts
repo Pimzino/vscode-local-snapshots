@@ -9,7 +9,7 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 		private readonly _extensionUri: vscode.Uri,
 		private readonly _onTakeSnapshot: () => Promise<void>,
 		private readonly _onRestoreSnapshot: (name: string, timestamp: number, selectedFiles?: string[]) => Promise<void>,
-		private readonly _onDeleteSnapshot: (name: string, timestamp: number) => Promise<void>,
+		private readonly _onDeleteSnapshot: (name: string, timestamp: number) => Promise<boolean>,
 		private readonly _onRenameSnapshot: (name: string, timestamp: number) => Promise<void>,
 		private readonly _getSnapshots: () => Promise<Snapshot[]>,
 		private readonly _getSnapshotFiles: (name: string, timestamp: number) => Promise<string[]>,
@@ -67,7 +67,10 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 					await this._showDiff(data.name, data.timestamp);
 					break;
 				case 'deleteSnapshot':
-					await this._onDeleteSnapshot(data.name, data.timestamp);
+					const wasDeleted = await this._onDeleteSnapshot(data.name, data.timestamp);
+					if (wasDeleted) {
+						await this.refreshList();
+					}
 					break;
 				case 'renameSnapshot':
 					await this._onRenameSnapshot(data.name, data.timestamp);
@@ -106,7 +109,11 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 		);
 
 		const codiconsUri = webview.asWebviewUri(
-			vscode.Uri.joinPath(this._extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css')
+			vscode.Uri.joinPath(this._extensionUri, 'media', 'codicons', 'codicon.css')
+		);
+
+		const codiconsFontUri = webview.asWebviewUri(
+			vscode.Uri.joinPath(this._extensionUri, 'media', 'codicons', 'codicon.ttf')
 		);
 
 		const nonce = this.getNonce();
@@ -116,7 +123,13 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+        <style>
+            @font-face {
+                font-family: "codicon";
+                src: url("${codiconsFontUri}") format("truetype");
+            }
+        </style>
         <link href="${styleUri}" rel="stylesheet">
         <link href="${codiconsUri}" rel="stylesheet">
         <title>Local Snapshots</title>
@@ -196,23 +209,20 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 			</div>
 		</div>
 		<div class="snapshot-actions">
-			<button class="action-button restore-button" title="Restore Snapshot">
+			<button class="action-button-round restore-button" title="Restore Snapshot">
 				<span class="codicon codicon-debug-restart"></span>
-				<span>Restore</span>
 			</button>
-			<button class="action-button diff-button" title="View Changes">
+			<button class="action-button-round diff-button" title="View Changes">
 				<span class="codicon codicon-diff"></span>
-				<span>View Diffs</span>
 			</button>
-			<button class="action-button rename-button" title="Rename Snapshot">
+			<button class="action-button-round rename-button" title="Rename Snapshot">
 				<span class="codicon codicon-edit"></span>
-				<span>Rename</span>
 			</button>
-			<button class="action-button delete-button" title="Delete Snapshot">
+			<button class="action-button-round delete-button" title="Delete Snapshot">
 				<span class="codicon codicon-trash"></span>
-				<span>Delete</span>
 			</button>
 		</div>
+
 	</div>
 </template>
 
@@ -229,4 +239,4 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 		}
 		return text;
 	}
-} 
+}
