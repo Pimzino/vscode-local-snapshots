@@ -7,6 +7,7 @@ export interface Snapshot {
 	name: string;
 	timestamp: number;
 	files: FileSnapshot[];
+	workspaceFolder?: string; // Workspace folder path for backward compatibility
 }
 
 export interface DiffFile {

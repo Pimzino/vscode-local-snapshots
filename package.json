@@ -1,8 +1,8 @@
 {
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
-  "description": "Take and Restore snapshots of your workspace files.",
-  "version": "0.0.4",
+  "description": "Create and manage local snapshots of your workspace files",
+  "version": "0.0.5",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
@@ -94,7 +94,11 @@
         },
         "localSnapshots.diffViewStyle": {
           "type": "string",
-          "enum": ["side-by-side", "inline", "both"],
+          "enum": [
+            "side-by-side",
+            "inline",
+            "both"
+          ],
           "default": "side-by-side",
           "description": "Choose how to display file differences: side-by-side (split view), inline (unified view), or both views"
         },
@@ -105,7 +109,6 @@
         }
       }
     },
-
     "viewsContainers": {
       "activitybar": [
         {
@@ -245,19 +248,22 @@
     "prebuild": "node scripts/copy-codicons.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.74.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
+    "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^8.17.0",
     "@typescript-eslint/parser": "^8.17.0",
-    "eslint": "^9.16.0",
-    "typescript": "^5.7.2",
-    "ts-loader": "^9.5.1",
-    "webpack": "^5.95.0",
-    "webpack-cli": "^5.1.4",
+    "@vscode/codicons": "^0.0.35",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
-    "@vscode/codicons": "^0.0.35"
+    "eslint": "^9.16.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.7.2",
+    "webpack": "^5.95.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@types/uuid": "^10.0.0",
+    "uuid": "^11.0.5"
   }
 }
-

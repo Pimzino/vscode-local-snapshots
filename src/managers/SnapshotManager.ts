@@ -3,6 +3,7 @@ import * as path from 'path';
 import { FileSnapshot, Snapshot, DiffFile } from '../types/interfaces';
 import { SnapshotWebviewProvider } from '../views/SnapshotWebviewProvider';
 import { SnapshotDiffWebviewProvider } from '../views/SnapshotDiffWebviewProvider';
+import { v4 as uuidv4 } from 'uuid';
 
 // Constants for file processing
 const BATCH_SIZE = 10; // Process files in batches of 10
@@ -11,6 +12,8 @@ const BATCH_SIZE = 10; // Process files in batches of 10
 export class SnapshotManager {
   private context: vscode.ExtensionContext;
   private readonly SNAPSHOTS_KEY = 'snapshots';
+  private readonly WORKSPACE_SNAPSHOTS_KEY = 'workspaceSnapshots';
+  private readonly MIGRATION_DONE_KEY = 'snapshotsMigrated';
   private webviewProvider?: SnapshotWebviewProvider;
   private disposables: vscode.Disposable[] = [];
   private documentStates: Map<string, { content: string, version: number }> = new Map();
@@ -22,6 +25,7 @@ export class SnapshotManager {
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
+    this.migrateSnapshots();
     
     // Create status bar item
     this.statusBarItem = vscode.window.createStatusBarItem(
@@ -108,6 +112,146 @@ export class SnapshotManager {
         }
       }
     );
+  }
+
+  private async migrateSnapshots(): Promise<void> {
+    // Check if migration has already been done
+    if (this.context.globalState.get(this.MIGRATION_DONE_KEY)) {
+      return;
+    }
+
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      return;
+    }
+
+    try {
+      // Get all existing snapshots
+      const existingSnapshots = this.context.globalState.get<Snapshot[]>(this.SNAPSHOTS_KEY, []);
+      if (existingSnapshots.length === 0) {
+        // No snapshots to migrate
+        await this.context.globalState.update(this.MIGRATION_DONE_KEY, true);
+        return;
+      }
+
+      // Group snapshots by workspace folder
+      const workspaceSnapshots = new Map<string, Snapshot[]>();
+      
+      for (const snapshot of existingSnapshots) {
+        // Try to determine which workspace the snapshot belongs to
+        let workspaceFolder: string | undefined;
+        let matchedFiles = 0;
+        let bestMatchWorkspace: string | undefined;
+        let bestMatchCount = 0;
+
+        // First try to match files against each workspace
+        for (const folder of workspaceFolders) {
+          matchedFiles = 0;
+          for (const file of snapshot.files) {
+            try {
+              // Check if the file exists in this workspace
+              const fullPath = path.join(folder.uri.fsPath, file.relativePath);
+              try {
+                await vscode.workspace.fs.stat(vscode.Uri.file(fullPath));
+                matchedFiles++;
+              } catch {
+                // File doesn't exist in this workspace
+                continue;
+              }
+            } catch {
+              continue;
+            }
+          }
+
+          // If we found matches in this workspace and it's the best match so far
+          if (matchedFiles > bestMatchCount) {
+            bestMatchCount = matchedFiles;
+            bestMatchWorkspace = folder.uri.fsPath;
+          }
+
+          // If we matched all files, no need to check other workspaces
+          if (matchedFiles === snapshot.files.length) {
+            break;
+          }
+        }
+
+        // Use the workspace with the most matched files
+        workspaceFolder = bestMatchWorkspace;
+
+        // If we still couldn't determine the workspace, try to infer from the first file path
+        if (!workspaceFolder && snapshot.files.length > 0) {
+          const firstFilePath = snapshot.files[0].relativePath;
+          // Split the path and try to match the top-level directory
+          const topLevelDir = firstFilePath.split(path.sep)[0];
+          
+          for (const folder of workspaceFolders) {
+            const folderName = path.basename(folder.uri.fsPath);
+            if (folderName === topLevelDir) {
+              workspaceFolder = folder.uri.fsPath;
+              break;
+            }
+          }
+        }
+
+        // If we still can't determine the workspace, log a warning and use the first workspace
+        if (!workspaceFolder) {
+          console.warn(`Could not determine workspace for snapshot "${snapshot.name}" with ${snapshot.files.length} files. Using first workspace as fallback.`);
+          workspaceFolder = workspaceFolders[0].uri.fsPath;
+        }
+
+        // Add workspace info to the snapshot
+        const snapshotWithWorkspace = {
+          ...snapshot,
+          workspaceFolder
+        };
+
+        // Add to the workspace group
+        const snapshots = workspaceSnapshots.get(workspaceFolder) || [];
+        snapshots.push(snapshotWithWorkspace);
+        workspaceSnapshots.set(workspaceFolder, snapshots);
+      }
+
+      // Save workspace-specific snapshots
+      for (const [workspaceFolder, snapshots] of workspaceSnapshots) {
+        const key = `${this.WORKSPACE_SNAPSHOTS_KEY}-${workspaceFolder}`;
+        await this.context.globalState.update(key, snapshots);
+      }
+
+      // Clear the old global snapshots
+      await this.context.globalState.update(this.SNAPSHOTS_KEY, undefined);
+      
+      // Mark migration as complete
+      await this.context.globalState.update(this.MIGRATION_DONE_KEY, true);
+
+      console.log('Snapshot migration completed successfully');
+    } catch (error) {
+      console.error('Failed to migrate snapshots:', error);
+      // Don't mark migration as done if it failed
+    }
+  }
+
+  public getSnapshots(): Snapshot[] {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      return [];
+    }
+
+    // Get snapshots for the current workspace
+    const workspaceFolder = workspaceFolders[0].uri.fsPath;
+    const key = `${this.WORKSPACE_SNAPSHOTS_KEY}-${workspaceFolder}`;
+    return this.context.globalState.get<Snapshot[]>(key, []);
+  }
+
+  private async saveSnapshots(snapshots: Snapshot[]): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+      return;
+    }
+
+    // Save snapshots for the current workspace
+    const workspaceFolder = workspaceFolders[0].uri.fsPath;
+    const key = `${this.WORKSPACE_SNAPSHOTS_KEY}-${workspaceFolder}`;
+    await this.context.globalState.update(key, snapshots);
   }
 
   private async readFileContent(uri: vscode.Uri): Promise<string> {
@@ -443,17 +587,6 @@ export class SnapshotManager {
   setWebviewProvider(provider: SnapshotWebviewProvider) {
     this.webviewProvider = provider;
   }
-
-  public getSnapshots(): Snapshot[] {
-    return this.context.globalState.get<Snapshot[]>(this.SNAPSHOTS_KEY, []);
-  }
-
-  private async saveSnapshots(snapshots: Snapshot[]): Promise<void> {
-    await this.context.globalState.update(this.SNAPSHOTS_KEY, snapshots);
-  }
-
-
-
 
   private formatTimestamp(): string {
     const date = new Date();
@@ -1209,5 +1342,32 @@ export class SnapshotManager {
 
     // Refresh the webview to show the updated name
     this.webviewProvider?.refreshList();
+  }
+
+  public async createSnapshot(name?: string): Promise<void> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      vscode.window.showErrorMessage('No workspace folder is open');
+      return;
+    }
+
+    const workspaceFolder = workspaceFolders[0].uri.fsPath;
+    const files: FileSnapshot[] = [];
+    const timestamp = Date.now();
+
+    // ... existing code ...
+
+    const snapshot: Snapshot = {
+      name: name || this.formatTimestamp(),
+      timestamp,
+      files,
+      workspaceFolder
+    };
+
+    const snapshots = this.getSnapshots();
+    snapshots.push(snapshot);
+    await this.saveSnapshots(snapshots);
+
+    // ... existing code ...
   }
 }

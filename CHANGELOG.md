@@ -2,6 +2,14 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.5] - 2024-01-27
+
+### Changed
+- Made snapshots workspace-specific:
+    - Each workspace now has its own set of snapshots
+    - Added automatic migration of existing snapshots to workspace-specific storage
+    - Improved handling of snapshots in multi-root workspaces
+
 ## [0.0.4] - 2024-01-27
 
 ### Changed
