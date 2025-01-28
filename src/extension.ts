@@ -37,8 +37,8 @@ export function activate(context: vscode.ExtensionContext) {
 		},
 		async () => snapshotManager.getSnapshots(),
 		async (name: string, timestamp: number) => snapshotManager.getSnapshotFiles(name, timestamp),
-		async (name: string, timestamp: number) => snapshotManager.showDiff(name, timestamp)
-
+		async (name: string, timestamp: number) => snapshotManager.showDiff(name, timestamp),
+		async (name: string, timestamp: number) => snapshotManager.showTree(name, timestamp)
 	);
 
 	snapshotManager.setWebviewProvider(webviewProvider);

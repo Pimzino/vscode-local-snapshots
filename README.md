@@ -20,6 +20,11 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
   - Search within diffs
   - Previous/Next match navigation
   - Match count indicator
+- **Tree View**: Browse snapshot contents in a hierarchical structure
+  - Directory-based file organization
+  - Expand/collapse folders
+  - Direct file restoration from tree view
+  - Visual feedback for restored files
 - **Selective Restore**: Choose specific files to restore from a snapshot
 - **Snapshot Filtering**: Search and filter snapshots by name, date, or file count
 - **Snapshot Limits**: Optionally limit the number of snapshots to manage storage

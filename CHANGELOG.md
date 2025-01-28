@@ -2,6 +2,20 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.6] - 2024-01-27
+
+### Added
+- Tree View for browsing snapshot contents:
+    - Hierarchical directory-based file organization
+    - Expand/collapse folder functionality
+    - Direct file restoration with visual feedback
+    - Global expand/collapse controls
+
+### Fixed
+- Fixed mass delete functionality not working after workspace-specific storage migration:
+    - Updated delete all snapshots command to handle per-workspace storage
+    - Ensured proper cleanup of snapshots across all workspace folders
+
 ## [0.0.5] - 2024-01-27
 
 ### Changed

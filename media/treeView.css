@@ -1,0 +1,274 @@
+body {
+	padding: 0;
+	margin: 0;
+	color: var(--vscode-editor-foreground);
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size);
+	line-height: var(--vscode-editor-line-height);
+}
+
+:root {
+	--card-padding: 16px;
+	--card-radius: 8px;
+	--card-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	--card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+	--transition-duration: 0.2s;
+	--spacing-xs: 4px;
+	--spacing-sm: 8px;
+	--spacing-md: 16px;
+	--spacing-lg: 24px;
+}
+
+.tree-container {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	padding: var(--spacing-md);
+	gap: var(--spacing-md);
+	position: relative;
+	overflow: hidden;
+}
+
+.global-controls {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: var(--spacing-sm) var(--spacing-md);
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: var(--card-radius);
+	box-shadow: var(--card-shadow);
+	position: sticky;
+	top: 0;
+	z-index: 100;
+	margin-bottom: var(--spacing-md);
+	gap: var(--spacing-lg);
+}
+
+.tree-view {
+	flex: 1;
+	overflow-y: auto;
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: var(--card-radius);
+	box-shadow: var(--card-shadow);
+	transition: all var(--transition-duration) ease;
+	padding: var(--spacing-md);
+	position: relative;
+	z-index: 1;
+}
+
+.tree-view:hover {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: var(--card-hover-shadow);
+}
+
+.controls-right {
+	display: flex;
+	gap: var(--spacing-sm);
+	flex-shrink: 0;
+}
+
+.tree-header h2 {
+	margin: 0;
+	display: flex;
+	align-items: center;
+	gap: var(--spacing-xs);
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.tree-item {
+	position: relative;
+	cursor: pointer;
+	padding: var(--spacing-xs) var(--spacing-sm);
+	display: flex;
+	align-items: center;
+	gap: var(--spacing-xs);
+	border-radius: 4px;
+	transition: all var(--transition-duration) ease;
+}
+
+.tree-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.tree-item .codicon {
+	font-size: 16px;
+}
+
+.tree-item.directory .codicon {
+	color: var(--vscode-symbolIcon-folderForeground);
+	transition: transform var(--transition-duration) ease;
+}
+
+.tree-item.file .codicon {
+	color: var(--vscode-symbolIcon-fileForeground);
+}
+
+.tree-item .toggle {
+	width: 16px;
+	height: 16px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.tree-item .toggle .codicon {
+	transition: transform var(--transition-duration) ease;
+}
+
+.tree-children {
+	margin-left: var(--spacing-lg);
+	position: relative;
+	overflow: hidden;
+	transition: height var(--transition-duration) ease;
+	z-index: 1;
+}
+
+.tree-children::before {
+	content: '';
+	position: absolute;
+	left: -12px;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	background-color: var(--vscode-widget-border);
+	opacity: 0.5;
+}
+
+.global-control {
+	display: flex;
+	align-items: center;
+	gap: var(--spacing-xs);
+	padding: var(--spacing-sm) var(--spacing-md);
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+	transition: all var(--transition-duration) ease;
+}
+
+.global-control:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+	transform: translateY(-1px);
+}
+
+.global-control .codicon {
+	font-size: 14px;
+}
+
+.restored-indicator {
+	display: flex;
+	align-items: center;
+	gap: var(--spacing-xs);
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+	font-size: 12px;
+	opacity: 0;
+	transition: opacity var(--transition-duration) ease;
+	position: static;
+	transform: none;
+	background: none;
+	padding: 0;
+	box-shadow: none;
+}
+
+.restored-indicator.visible {
+	opacity: 1;
+}
+
+.tree-actions {
+	display: flex;
+	gap: var(--spacing-sm);
+}
+
+.controls-left,
+.controls-right {
+	display: flex;
+	gap: var(--spacing-sm);
+}
+
+@media (max-width: 600px) {
+	.global-controls {
+		flex-direction: column;
+		gap: var(--spacing-sm);
+	}
+
+	.controls-right {
+		width: 100%;
+	}
+
+	.global-control {
+		flex: 1;
+		justify-content: center;
+	}
+}
+
+.restore-button {
+	display: flex;
+	align-items: center;
+	gap: var(--spacing-xs);
+	padding: var(--spacing-xs) var(--spacing-md);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+	transition: all var(--transition-duration) ease;
+}
+
+.restore-button:hover:not(:disabled) {
+	background: var(--vscode-button-hoverBackground);
+	transform: translateY(-1px);
+}
+
+.restore-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.tree-item .actions {
+	display: flex;
+	margin-left: auto;
+	gap: var(--spacing-md);
+	align-items: center;
+	position: relative;
+	z-index: 5;
+}
+
+.tree-item .restore-button {
+	display: none;
+}
+
+.tree-item:hover .restore-button {
+	display: flex;
+}
+
+.tree-item.collapsed .toggle .codicon {
+	transform: rotate(-90deg);
+}
+
+.tree-item.collapsed + .tree-children {
+	display: none;
+}
+
+.tree-item .name {
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+@media (max-width: 600px) {
+	.tree-container {
+		padding: var(--spacing-sm);
+	}
+	
+	.tree-children {
+		margin-left: var(--spacing-md);
+	}
+}

@@ -3,9 +3,10 @@ import * as path from 'path';
 import { FileSnapshot, Snapshot, DiffFile } from '../types/interfaces';
 import { SnapshotWebviewProvider } from '../views/SnapshotWebviewProvider';
 import { SnapshotDiffWebviewProvider } from '../views/SnapshotDiffWebviewProvider';
-import { v4 as uuidv4 } from 'uuid';
+import { SnapshotTreeWebviewProvider } from '../views/SnapshotTreeWebviewProvider';
 
 // Constants for file processing
+
 const BATCH_SIZE = 10; // Process files in batches of 10
 
 
@@ -19,6 +20,7 @@ export class SnapshotManager {
   private documentStates: Map<string, { content: string, version: number }> = new Map();
   private pendingChanges: Set<string> = new Set();
   private diffProvider?: SnapshotDiffWebviewProvider;
+  private treeProvider?: SnapshotTreeWebviewProvider;
   private timedSnapshotInterval?: NodeJS.Timeout;
   private statusBarItem: vscode.StatusBarItem;
   private countdownInterval?: NodeJS.Timeout;
@@ -97,19 +99,37 @@ export class SnapshotManager {
     this.diffProvider = new SnapshotDiffWebviewProvider(
       context.extensionUri,
       async (filePath: string) => {
-        // Get the current snapshot being viewed
+      // Get the current snapshot being viewed
+      const snapshots = this.getSnapshots();
+      const snapshot = snapshots.find(s => 
+        s.name === this.diffProvider?.snapshotName && 
+        s.timestamp === this.diffProvider?.timestamp
+      );
+      
+      if (snapshot) {
+        const fileToRestore = snapshot.files.find(f => f.relativePath === filePath);
+        if (fileToRestore) {
+        await this.restoreFile(fileToRestore);
+        }
+      }
+      }
+    );
+
+    this.treeProvider = new SnapshotTreeWebviewProvider(
+      context.extensionUri,
+      async (filePath: string) => {
         const snapshots = this.getSnapshots();
         const snapshot = snapshots.find(s => 
-          s.name === this.diffProvider?.snapshotName && 
-          s.timestamp === this.diffProvider?.timestamp
+        s.name === this.treeProvider?.currentSnapshotName && 
+        s.timestamp === this.treeProvider?.currentTimestamp
         );
-        
-        if (snapshot) {
-          const fileToRestore = snapshot.files.find(f => f.relativePath === filePath);
-          if (fileToRestore) {
-            await this.restoreFile(fileToRestore);
-          }
+      
+      if (snapshot) {
+        const fileToRestore = snapshot.files.find(f => f.relativePath === filePath);
+        if (fileToRestore) {
+        await this.restoreFile(fileToRestore);
         }
+      }
       }
     );
   }
@@ -1002,10 +1022,11 @@ export class SnapshotManager {
         title: 'Preparing Diff View...',
         cancellable: false
     }, async (progress) => {
-        const snapshots = this.getSnapshots();
-        const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
+      const snapshots = this.getSnapshots();
+      const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
 
-        if (!snapshot || !snapshot.files.length) {
+      if (!snapshot || !snapshot.files.length) {
+
             throw new Error('Snapshot not found or empty');
         }
 
@@ -1123,6 +1144,30 @@ export class SnapshotManager {
     });
 }
 
+  async showTree(snapshotName: string, timestamp: number): Promise<void> {
+    return vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Preparing Tree View...',
+        cancellable: false
+    }, async (progress) => {
+        const snapshots = this.getSnapshots();
+        const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
+
+        if (!snapshot || !snapshot.files.length) {
+            throw new Error('Snapshot not found or empty');
+        }
+
+        try {
+            progress.report({ message: 'Building tree structure...' });
+            if (this.treeProvider) {
+                await this.treeProvider.showTree(snapshot.files, snapshotName, timestamp);
+            }
+        } catch (error) {
+            console.error('Failed to show tree view:', error);
+            vscode.window.showErrorMessage('Failed to show tree view');
+        }
+    });
+  }
 
   private async restoreFile(file: FileSnapshot): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -1301,7 +1346,17 @@ export class SnapshotManager {
       return false;
     }
 
-    await this.context.globalState.update(this.SNAPSHOTS_KEY, []);
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      return false;
+    }
+
+    // Clear snapshots for each workspace folder
+    for (const folder of workspaceFolders) {
+      const key = `${this.WORKSPACE_SNAPSHOTS_KEY}-${folder.uri.fsPath}`;
+      await this.context.globalState.update(key, []);
+    }
+
     this.webviewProvider?.refreshList();
     vscode.window.showInformationMessage('All snapshots have been deleted');
     return true;

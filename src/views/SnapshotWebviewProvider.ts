@@ -13,7 +13,8 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 		private readonly _onRenameSnapshot: (name: string, timestamp: number) => Promise<void>,
 		private readonly _getSnapshots: () => Promise<Snapshot[]>,
 		private readonly _getSnapshotFiles: (name: string, timestamp: number) => Promise<string[]>,
-		private readonly _showDiff: (name: string, timestamp: number) => Promise<void>
+		private readonly _showDiff: (name: string, timestamp: number) => Promise<void>,
+		private readonly _showTree: (name: string, timestamp: number) => Promise<void>
 	) {}
 
 	public resolveWebviewView(
@@ -65,6 +66,9 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 					break;
 				case 'showDiff':
 					await this._showDiff(data.name, data.timestamp);
+					break;
+				case 'showTree':
+					await this._showTree(data.name, data.timestamp);
 					break;
 				case 'deleteSnapshot':
 					const wasDeleted = await this._onDeleteSnapshot(data.name, data.timestamp);
@@ -217,6 +221,9 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 			</button>
 			<button class="action-button-round rename-button" title="Rename Snapshot">
 				<span class="codicon codicon-edit"></span>
+			</button>
+			<button class="action-button-round tree-button" title="View Tree">
+				<span class="codicon codicon-list-tree"></span>
 			</button>
 			<button class="action-button-round delete-button" title="Delete Snapshot">
 				<span class="codicon codicon-trash"></span>

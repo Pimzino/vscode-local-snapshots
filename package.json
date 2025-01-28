@@ -2,7 +2,7 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Create and manage local snapshots of your workspace files",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
