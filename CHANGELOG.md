@@ -2,6 +2,19 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.8] - 2024-01-27
+
+### Fixed
+- Fixed file / directory snapshot diff view incorrectly showing all files as created:
+    - Properly adjusted file paths relative to the snapshot directory root
+    - Improved path comparison logic for accurate change detection
+    - Fixed diff view to correctly show modified, created, and deleted files
+
+## [0.0.7] - 2024-01-27
+
+### Changed
+- Updated repository URLs to point to new repository location (vscode-local-snapshots)
+
 ## [0.0.6] - 2024-01-27
 
 ### Added

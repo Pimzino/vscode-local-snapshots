@@ -2,17 +2,17 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Create and manage local snapshots of your workspace files",
-  "version": "0.0.6",
+  "version": "0.0.8",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Pimzino/local-snapshots"
+    "url": "https://github.com/Pimzino/vscode-local-snapshots"
   },
   "bugs": {
-    "url": "https://github.com/Pimzino/local-snapshots/issues"
+    "url": "https://github.com/Pimzino/vscode-local-snapshots/issues"
   },
-  "homepage": "https://github.com/Pimzino/local-snapshots#readme",
+  "homepage": "https://github.com/Pimzino/vscode-local-snapshots#readme",
   "keywords": [
     "snapshot",
     "backup",
@@ -32,8 +32,8 @@
   "icon": "resources/icon.png",
   "badges": [
     {
-      "url": "https://img.shields.io/github/license/Pimzino/local-snapshots",
-      "href": "https://github.com/Pimzino/local-snapshots/blob/main/LICENSE",
+        "url": "https://img.shields.io/github/license/Pimzino/vscode-local-snapshots",
+        "href": "https://github.com/Pimzino/vscode-local-snapshots/blob/main/LICENSE",
       "description": "MIT License"
     }
   ],

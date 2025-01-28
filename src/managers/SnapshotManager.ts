@@ -744,7 +744,13 @@ export class SnapshotManager {
     }
   }
 
-  private async processFilesInBatches(files: vscode.Uri[], workspaceFolder: vscode.WorkspaceFolder, progress: vscode.Progress<{ message?: string; increment?: number }>, totalFiles: number): Promise<FileSnapshot[]> {
+  private async processFilesInBatches(
+    files: vscode.Uri[],
+    workspaceFolder: vscode.WorkspaceFolder,
+    progress: vscode.Progress<{ message?: string; increment?: number }>,
+    totalFiles: number,
+    snapshotRoot?: string
+  ): Promise<FileSnapshot[]> {
     const results: FileSnapshot[] = [];
     let processedFiles = 0;
     let skippedFiles = 0;
@@ -755,7 +761,10 @@ export class SnapshotManager {
         const batchResults = await Promise.all(
             batch.map(async (uri) => {
                 try {
-                    const relativePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+                    // Use snapshotRoot if provided, otherwise use workspace folder
+                    const baseDir = snapshotRoot || workspaceFolder.uri.fsPath;
+                    const relativePath = path.relative(baseDir, uri.fsPath);
+                    
                     if (this.shouldSkipFile(relativePath)) {
                         skippedFiles++;
                         return null;
@@ -1040,32 +1049,61 @@ export class SnapshotManager {
 
             // Get all current workspace files
             const currentFiles = new Map<string, string>();
-            const pattern = new vscode.RelativePattern(workspaceFolders[0], '**/*');
-            const currentUris = await vscode.workspace.findFiles(
-                pattern,
-                '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
-            );
+            let scanPattern: vscode.RelativePattern;
+            let scanRoot: vscode.Uri;
 
-            // Build map of current files
-            for (const uri of currentUris) {
-                const relativePath = path.relative(workspaceFolders[0].uri.fsPath, uri.fsPath);
-                if (!this.shouldSkipFile(relativePath)) {
-                    try {
-                        const content = await this.readFileContent(uri);
-                        currentFiles.set(relativePath, content);
-                    } catch (error) {
-                        console.log(`Skipping likely binary file: ${relativePath}`);
-                        // Skip this file as it's likely binary
-                        continue;
-                    }
-                }
+            if (snapshot.snapshotScope) {
+              switch (snapshot.snapshotScope.type) {
+                case 'file':
+                  scanRoot = vscode.Uri.file(path.dirname(snapshot.snapshotScope.uri));
+                  scanPattern = new vscode.RelativePattern(
+                    scanRoot.fsPath,
+                    path.basename(snapshot.snapshotScope.uri)
+                  );
+                  break;
+                case 'directory':
+                  scanRoot = vscode.Uri.file(snapshot.snapshotScope.uri);
+                  scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
+                  break;
+                default:
+                  scanRoot = workspaceFolders[0].uri;
+                  scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
+              }
+            } else {
+              scanRoot = workspaceFolders[0].uri;
+              scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
             }
 
-            const snapshotFiles = new Map(
-                snapshot.files
-                    .filter(f => !this.shouldSkipFile(f.relativePath))
-                    .map(f => [f.relativePath, f])
+            const currentUris = await vscode.workspace.findFiles(
+              scanPattern,
+              '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
             );
+
+            // Build map of current files with paths relative to scan root
+            for (const uri of currentUris) {
+              const relativePath = path.relative(scanRoot.fsPath, uri.fsPath);
+              if (!this.shouldSkipFile(relativePath)) {
+                try {
+                  const content = await this.readFileContent(uri);
+                  // For directory snapshots, we need to keep the paths relative to the snapshot directory
+                  const adjustedPath = snapshot.snapshotScope?.type === 'directory' 
+                    ? path.relative(snapshot.snapshotScope.uri, uri.fsPath)
+                    : relativePath;
+                  currentFiles.set(adjustedPath, content);
+                } catch (error) {
+                  console.log(`Skipping likely binary file: ${relativePath}`);
+                  continue;
+                }
+              }
+            }
+
+            // For directory snapshots, the paths in snapshot files are already relative to the snapshot directory
+            const snapshotFiles = new Map(
+              snapshot.files
+                .filter(f => !this.shouldSkipFile(f.relativePath))
+                .map(f => [f.relativePath, f])
+            );
+
             const changedFiles: DiffFile[] = [];
             let processedFiles = 0;
             const totalFiles = snapshotFiles.size + currentFiles.size;
@@ -1244,7 +1282,11 @@ export class SnapshotManager {
               files: [{
               content,
               relativePath
-              }]
+              }],
+              snapshotScope: {
+              type: 'file',
+              uri: uri.fsPath
+              }
             };
 
 
@@ -1274,15 +1316,6 @@ export class SnapshotManager {
 
         progress.report({ message: 'Analyzing directory...' });
 
-        if (this.shouldSkipUnchangedSnapshots()) {
-            progress.report({ message: 'Checking for changes...' });
-            const hasChanges = await this.hasChangedFiles();
-            if (!hasChanges) {
-                vscode.window.showInformationMessage('Directory snapshot skipped - no changes detected');
-                return;
-            }
-        }
-
         const workspaceFolder = workspaceFolders.find(folder => 
             uri.fsPath.startsWith(folder.uri.fsPath)
         );
@@ -1291,14 +1324,25 @@ export class SnapshotManager {
             throw new Error('Directory is not in the current workspace');
         }
 
-        const pattern = new vscode.RelativePattern(uri, '**/*');
+        // Use the directory as the pattern root
+        const pattern = new vscode.RelativePattern(uri.fsPath, '**/*');
         const uris = await vscode.workspace.findFiles(pattern);
         const totalFiles = uris.length;
 
+        if (totalFiles === 0) {
+            throw new Error('No files found in directory');
+        }
+
         progress.report({ message: 'Scanning files...' });
 
-        // Process files in batches
-        const files = await this.processFilesInBatches(uris, workspaceFolder, progress, totalFiles);
+        // Process files in batches, using the directory as the root for relative paths
+        const files = await this.processFilesInBatches(
+            uris,
+            workspaceFolder,
+            progress,
+            totalFiles,
+            uri.fsPath // Pass the directory path as the snapshot root
+        );
 
         if (files.length === 0) {
             throw new Error('No files found to snapshot in this directory');
@@ -1309,16 +1353,19 @@ export class SnapshotManager {
         const timestamp = this.formatTimestamp();
         
         const snapshot: Snapshot = {
-          name: `${dirName} - ${timestamp}`,
-          timestamp: Date.now(),
-          files
+            name: `${dirName} - ${timestamp}`,
+            timestamp: Date.now(),
+            files,
+            snapshotScope: {
+                type: 'directory',
+                uri: uri.fsPath
+            }
         };
-
 
         await this.addSnapshot(snapshot);
         this.webviewProvider?.refreshList();
     });
-  }
+}
 
 
   dispose() {
@@ -1410,19 +1457,19 @@ export class SnapshotManager {
     const files: FileSnapshot[] = [];
     const timestamp = Date.now();
 
-    // ... existing code ...
-
     const snapshot: Snapshot = {
       name: name || this.formatTimestamp(),
       timestamp,
       files,
-      workspaceFolder
+      workspaceFolder,
+      snapshotScope: {
+      type: 'workspace',
+      uri: workspaceFolder
+      }
     };
 
     const snapshots = this.getSnapshots();
     snapshots.push(snapshot);
     await this.saveSnapshots(snapshots);
-
-    // ... existing code ...
   }
 }

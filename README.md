@@ -88,7 +88,7 @@ Create your own keyboard shortcuts for any of these commands:
 - No additional dependencies required
 
 ## Known Issues
-Please report any issues on our [GitHub repository](https://github.com/Pimzino/local-snapshots/issues).
+Please report any issues on our [GitHub repository](https://github.com/Pimzino/vscode-local-snapshots/issues).
 
 ## Release Notes
 
