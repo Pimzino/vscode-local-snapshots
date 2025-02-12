@@ -1,5 +1,12 @@
 # Local Snapshots for VS Code
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Pimzino/vscode-local-snapshots/main/resources/icon.svg" alt="Local Snapshots Logo" width="128" height="128">
+
+  [![GitHub stars](https://img.shields.io/github/stars/Pimzino/vscode-local-snapshots?style=social)](https://github.com/Pimzino/vscode-local-snapshots)
+  [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow.svg?style=flat&logo=buy-me-a-coffee)](https://www.buymeacoffee.com/pimzino)
+</div>
+
 Take and restore snapshots of your workspace files with ease. Local Snapshots provides a powerful way to create, manage, and restore file snapshots directly within VS Code, offering both manual and automatic snapshot capabilities.
 
 ## Features
@@ -105,8 +112,8 @@ Create your own keyboard shortcuts for any of these commands:
 - VS Code version 1.74.0 or higher
 - No additional dependencies required
 
-## Known Issues
-Please report any issues on our [GitHub repository](https://github.com/Pimzino/vscode-local-snapshots/issues).
+## Known Issues & Feedback
+Please report any issues or feature suggestions by creating a new issue on our [GitHub Issues page](https://github.com/Pimzino/vscode-local-snapshots/issues). Also, if you enjoy using the extension, please consider giving the repository a star on [GitHub](https://github.com/Pimzino/vscode-local-snapshots) to show your support!
 
 ## Release Notes
 
