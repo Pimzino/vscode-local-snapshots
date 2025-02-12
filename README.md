@@ -25,6 +25,13 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
   - Expand/collapse folders
   - Direct file restoration from tree view
   - Visual feedback for restored files
+- **Ignore Patterns**: Exclude files from snapshots
+  - Automatic .gitignore integration
+  - Custom ignore patterns support
+  - Visual pattern management interface
+  - Search and filter patterns
+  - Add files/folders via context menu
+  - Real-time pattern updates
 - **Selective Restore**: Choose specific files to restore from a snapshot
 - **Snapshot Filtering**: Search and filter snapshots by name, date, or file count
 - **Snapshot Limits**: Optionally limit the number of snapshots to manage storage
@@ -56,6 +63,8 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 ### Storage Management
 * `local-snapshots.limitSnapshotCount`: Enable/disable maximum snapshot limit (default: `false`)
 * `local-snapshots.maxSnapshotCount`: Maximum number of snapshots to keep (default: `10`, minimum: `1`)
+* `local-snapshots.respectGitignore`: Use .gitignore patterns to exclude files from snapshots (default: `true`)
+* `local-snapshots.customIgnorePatterns`: Custom glob patterns to exclude files from snapshots (e.g. ['*.log', 'temp/**'])
 
 ### Display Settings
 * `local-snapshots.diffViewStyle`: Choose how to display file differences: side-by-side, inline, or both views (default: `side-by-side`)
@@ -74,6 +83,15 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 - Use selective restore to recover specific files
 - Clean up old snapshots regularly using the snapshot limit feature
 - Rename snapshots to keep them organized and meaningful
+
+### Managing Ignore Patterns
+- Access the ignore patterns manager from the Local Snapshots sidebar
+- Patterns from .gitignore files are automatically synced and marked
+- Add custom patterns using the input field or context menu
+- Right-click files/folders in VS Code explorer to add them to ignore patterns
+- Use the search boxes to filter both patterns and workspace files
+- Custom patterns can be removed, while .gitignore patterns are read-only
+- Changes take effect immediately for future snapshots
 
 ### Keyboard Shortcuts
 Create your own keyboard shortcuts for any of these commands:

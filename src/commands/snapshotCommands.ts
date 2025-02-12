@@ -87,8 +87,6 @@ export function registerSnapshotCommands(
 			}
 		}),
 
-
-
 		vscode.commands.registerCommand('local-snapshots.renameSnapshot', async (snapshotName: string, timestamp: number) => {
 			const newName = await vscode.window.showInputBox({
 				prompt: 'Enter new name for the snapshot',
@@ -110,6 +108,80 @@ export function registerSnapshotCommands(
 					vscode.window.showErrorMessage((error instanceof Error ? error.message : 'Failed to rename snapshot'));
 				}
 			}
+		}),
+
+		// Add file to ignore patterns
+		vscode.commands.registerCommand('local-snapshots.addFileToIgnore', async (uri: vscode.Uri) => {
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			if (!workspaceFolders) {
+				vscode.window.showErrorMessage('No workspace folder is open');
+				return;
+			}
+
+			const workspaceFolder = workspaceFolders.find(folder => 
+				uri.fsPath.startsWith(folder.uri.fsPath)
+			);
+
+			if (!workspaceFolder) {
+				vscode.window.showErrorMessage('File is not in the current workspace');
+				return;
+			}
+
+			const relativePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+			const pattern = relativePath.replace(/\\/g, '/');
+
+			const config = vscode.workspace.getConfiguration('localSnapshots');
+			const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
+
+			if (currentPatterns.includes(pattern)) {
+				vscode.window.showInformationMessage(`Pattern "${pattern}" is already in ignore list`);
+				return;
+			}
+
+			await config.update(
+				'customIgnorePatterns',
+				[...currentPatterns, pattern],
+				vscode.ConfigurationTarget.Global
+			);
+
+			vscode.window.showInformationMessage(`Added "${pattern}" to ignore patterns`);
+		}),
+
+		// Add directory to ignore patterns
+		vscode.commands.registerCommand('local-snapshots.addDirectoryToIgnore', async (uri: vscode.Uri) => {
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			if (!workspaceFolders) {
+				vscode.window.showErrorMessage('No workspace folder is open');
+				return;
+			}
+
+			const workspaceFolder = workspaceFolders.find(folder => 
+				uri.fsPath.startsWith(folder.uri.fsPath)
+			);
+
+			if (!workspaceFolder) {
+				vscode.window.showErrorMessage('Directory is not in the current workspace');
+				return;
+			}
+
+			const relativePath = path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+			const pattern = relativePath.replace(/\\/g, '/') + '/**';
+
+			const config = vscode.workspace.getConfiguration('localSnapshots');
+			const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
+
+			if (currentPatterns.includes(pattern)) {
+				vscode.window.showInformationMessage(`Pattern "${pattern}" is already in ignore list`);
+				return;
+			}
+
+			await config.update(
+				'customIgnorePatterns',
+				[...currentPatterns, pattern],
+				vscode.ConfigurationTarget.Global
+			);
+
+			vscode.window.showInformationMessage(`Added "${pattern}" to ignore patterns`);
 		})
 	];
 } 

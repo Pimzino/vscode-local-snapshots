@@ -2,6 +2,44 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.9] - 2025-02-12
+
+### 🎉 New Feature: Ignore Patterns Management
+
+We're excited to introduce a powerful new feature that gives you more control over which files are included in your snapshots!
+
+#### 🔄 Automatic .gitignore Integration
+- Your existing .gitignore patterns are now automatically respected
+- Patterns from .gitignore files are synced in real-time
+- Visual indicators show which patterns come from .gitignore
+- Changes to .gitignore files are detected and updated automatically
+
+#### ✨ Custom Ignore Patterns
+- Add your own patterns to exclude files from snapshots
+- Easy-to-use visual interface for managing patterns
+- Search functionality to find specific patterns
+- Visual workspace file browser to select files/folders to ignore
+- Right-click context menu integration in VS Code's explorer
+
+#### 🛠️ New Settings
+- `localSnapshots.respectGitignore`: Toggle .gitignore integration (on by default)
+- `localSnapshots.customIgnorePatterns`: Define your own exclude patterns
+
+#### 💡 How to Use
+1. Click the "Manage Ignore Patterns" button in the Local Snapshots sidebar
+2. View your current patterns, including those from .gitignore
+3. Add new patterns either by:
+   - Typing them directly in the input field
+   - Right-clicking files/folders in VS Code's explorer
+   - Using the workspace browser in the ignore patterns view
+4. Search through patterns and workspace files using the search boxes
+5. Remove custom patterns with the delete button (note: .gitignore patterns can only be modified in the .gitignore file)
+
+#### 🚀 Performance Improvements
+- Enhanced snapshot performance through optimized file filtering
+- Efficient pattern matching using the 'ignore' package
+- Smart caching of .gitignore patterns for better performance
+
 ## [0.0.8] - 2024-01-27
 
 ### Fixed

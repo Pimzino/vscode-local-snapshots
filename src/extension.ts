@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { SnapshotManager } from './managers/SnapshotManager';
 import { SnapshotWebviewProvider } from './views/SnapshotWebviewProvider';
 import { registerSnapshotCommands } from './commands/snapshotCommands';
+import { IgnorePatternsWebviewProvider } from './views/IgnorePatternsWebviewProvider';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('==============================================');
@@ -72,6 +73,13 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
+	// Register the ignore patterns command
+	const ignorePatternsProvider = new IgnorePatternsWebviewProvider(context.extensionUri);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('local-snapshots.manageIgnorePatterns', () => {
+			ignorePatternsProvider.show();
+		})
+	);
 
 	// Add all disposables to context
 	context.subscriptions.push(webviewDisposable, ...commandDisposables);

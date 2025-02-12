@@ -38,3 +38,5 @@ vsc-extension-quickstart.md
 **/*.ts
 **/.vscode-test.*
 !resources/**
+!media/**
+!dist/**

@@ -1,0 +1,226 @@
+.container {
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.patterns-section, .workspace-section {
+    background: var(--vscode-sideBar-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 6px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    box-sizing: border-box;
+    max-height: calc(100vh - 40px);
+}
+
+.scroll-container {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.pattern-list, .workspace-tree {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 6px 8px;
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.search-box input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--vscode-input-foreground);
+    font-family: var(--vscode-font-family);
+    font-size: 13px;
+    outline: none;
+}
+
+.search-box .codicon {
+    color: var(--vscode-input-placeholderForeground);
+    font-size: 16px;
+}
+
+.search-box:focus-within {
+    border-color: var(--vscode-focusBorder);
+}
+
+.search-box:focus-within .codicon {
+    color: var(--vscode-input-foreground);
+}
+
+h2 {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.pattern-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pattern-source {
+    font-size: 11px;
+    padding: 2px 6px;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    border-radius: 3px;
+    opacity: 0.8;
+}
+
+.pattern-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px;
+    margin-bottom: 4px;
+    background: var(--vscode-list-hoverBackground);
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.pattern-item:hover {
+    background: var(--vscode-list-activeSelectionBackground);
+}
+
+.pattern-text {
+    color: var(--vscode-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: 13px;
+}
+
+.remove-pattern {
+    background: none;
+    border: none;
+    color: var(--vscode-errorForeground);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.8;
+    transition: all 0.2s ease;
+}
+
+.remove-pattern:hover {
+    opacity: 1;
+    background: var(--vscode-errorForeground);
+    color: white;
+}
+
+.add-pattern {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-top: auto;
+}
+
+.add-pattern input {
+    flex: 1;
+    background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border);
+    color: var(--vscode-input-foreground);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 13px;
+}
+
+.add-pattern input:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+}
+
+.add-pattern button {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+.add-pattern button:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.tree-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.tree-item:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.tree-item.selected {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.tree-item .codicon {
+    margin-right: 6px;
+}
+
+.tree-item-folder {
+    color: var(--vscode-gitDecoration-submoduleResourceForeground);
+}
+
+.tree-item-file {
+    color: var(--vscode-foreground);
+    padding-left: 24px;
+}
+
+.tree-item-toggle {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+    cursor: pointer;
+}
+
+.folder-content {
+    margin-left: 16px;
+} 

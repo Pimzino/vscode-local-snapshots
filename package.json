@@ -2,7 +2,7 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Create and manage local snapshots of your workspace files",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
@@ -106,6 +106,19 @@
           "type": "boolean",
           "default": true,
           "description": "Show confirmation dialog when deleting snapshots. Can be disabled in settings."
+        },
+        "localSnapshots.respectGitignore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use .gitignore patterns to exclude files from snapshots"
+        },
+        "localSnapshots.customIgnorePatterns": {
+          "type": "array",
+          "default": [],
+          "description": "Custom glob patterns to exclude files from snapshots (e.g. ['*.log', 'temp/**'])",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -184,6 +197,24 @@
         "title": "Rename Snapshot",
         "category": "Local Snapshots",
         "icon": "$(edit)"
+      },
+      {
+        "command": "local-snapshots.manageIgnorePatterns",
+        "title": "Manage Ignore Patterns",
+        "category": "Local Snapshots",
+        "icon": "$(exclude)"
+      },
+      {
+        "command": "local-snapshots.addFileToIgnore",
+        "title": "Add to Ignore Patterns",
+        "category": "Local Snapshots",
+        "icon": "$(exclude)"
+      },
+      {
+        "command": "local-snapshots.addDirectoryToIgnore",
+        "title": "Add to Ignore Patterns",
+        "category": "Local Snapshots",
+        "icon": "$(exclude)"
       }
     ],
     "menus": {
@@ -204,9 +235,14 @@
           "group": "navigation@3"
         },
         {
-          "command": "local-snapshots.openSettings",
+          "command": "local-snapshots.manageIgnorePatterns",
           "when": "view == local-snapshots-list",
           "group": "navigation@4"
+        },
+        {
+          "command": "local-snapshots.openSettings",
+          "when": "view == local-snapshots-list",
+          "group": "navigation@5"
         }
       ],
       "explorer/context": [
@@ -219,6 +255,16 @@
           "command": "local-snapshots.snapshotDirectory",
           "when": "resourceScheme == file && explorerResourceIsFolder",
           "group": "local-snapshots@1"
+        },
+        {
+          "command": "local-snapshots.addFileToIgnore",
+          "when": "resourceScheme == file && !explorerResourceIsFolder",
+          "group": "local-snapshots@2"
+        },
+        {
+          "command": "local-snapshots.addDirectoryToIgnore",
+          "when": "resourceScheme == file && explorerResourceIsFolder",
+          "group": "local-snapshots@2"
         }
       ]
     },
@@ -264,6 +310,9 @@
   },
   "dependencies": {
     "@types/uuid": "^10.0.0",
-    "uuid": "^11.0.5"
+    "uuid": "^11.0.5",
+    "@vscode/codicons": "^0.0.35",
+    "@vscode/webview-ui-toolkit": "^1.4.0",
+    "ignore": "^5.3.1"
   }
 }

@@ -4,6 +4,7 @@ import { FileSnapshot, Snapshot, DiffFile } from '../types/interfaces';
 import { SnapshotWebviewProvider } from '../views/SnapshotWebviewProvider';
 import { SnapshotDiffWebviewProvider } from '../views/SnapshotDiffWebviewProvider';
 import { SnapshotTreeWebviewProvider } from '../views/SnapshotTreeWebviewProvider';
+import ignore from 'ignore';
 
 // Constants for file processing
 
@@ -24,6 +25,7 @@ export class SnapshotManager {
   private timedSnapshotInterval?: NodeJS.Timeout;
   private statusBarItem: vscode.StatusBarItem;
   private countdownInterval?: NodeJS.Timeout;
+  private gitignoreCache: Map<string, ReturnType<typeof ignore>> = new Map();
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
@@ -131,6 +133,44 @@ export class SnapshotManager {
         }
       }
       }
+    );
+
+    // Initialize gitignore for all workspace folders
+    if (vscode.workspace.workspaceFolders) {
+      for (const folder of vscode.workspace.workspaceFolders) {
+        this.loadGitignore(folder.uri.fsPath).catch(error => {
+          console.error('Error loading .gitignore for workspace:', error);
+        });
+      }
+    }
+
+    // Watch for workspace folder changes
+    this.disposables.push(
+      vscode.workspace.onDidChangeWorkspaceFolders(async event => {
+        // Load gitignore for added folders
+        for (const folder of event.added) {
+          await this.loadGitignore(folder.uri.fsPath);
+        }
+        // Remove cached gitignore for removed folders
+        for (const folder of event.removed) {
+          this.gitignoreCache.delete(folder.uri.fsPath);
+        }
+      })
+    );
+
+    // Watch for .gitignore changes
+    this.disposables.push(
+      vscode.workspace.onDidChangeTextDocument(event => {
+        const document = event.document;
+        if (path.basename(document.uri.fsPath) === '.gitignore') {
+          const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+          if (workspaceFolder) {
+            this.loadGitignore(workspaceFolder.uri.fsPath).catch(error => {
+              console.error('Error reloading .gitignore:', error);
+            });
+          }
+        }
+      })
     );
   }
 
@@ -581,27 +621,50 @@ export class SnapshotManager {
     }
   }
 
-  private shouldSkipFile(relativePath: string): boolean {
+  private shouldSkipFile(relativePath: string, workspaceFolder?: string): boolean {
+    // Check built-in skip patterns first
     const skipPatterns = [
-        // System files
-        /\.DS_Store/,
-        /Thumbs\.db/,
-        /desktop\.ini/,
+      // System files
+      /\.DS_Store/,
+      /Thumbs\.db/,
+      /desktop\.ini/,
 
-        // Binary and non-text files
-        /\.(jpg|jpeg|png|gif|ico|webp|bmp)$/i,
-        /\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i,
-        /\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i,
-        /\.(zip|rar|7z|tar|gz)$/i,
-        /\.(exe|dll|so|dylib)$/i,
-        /\.(ttf|otf|eot|woff|woff2)$/i,
-        /\.(pyc|pyo|pyd)$/i,
-        /\.(class|jar)$/i,
-        /\.(db|sqlite|mdb)$/i,
-        /\.(bin|dat|bak)$/i
+      // Binary and non-text files
+      /\.(jpg|jpeg|png|gif|ico|webp|bmp)$/i,
+      /\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i,
+      /\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i,
+      /\.(zip|rar|7z|tar|gz)$/i,
+      /\.(exe|dll|so|dylib)$/i,
+      /\.(ttf|otf|eot|woff|woff2)$/i,
+      /\.(pyc|pyo|pyd)$/i,
+      /\.(class|jar)$/i,
+      /\.(db|sqlite|mdb)$/i,
+      /\.(bin|dat|bak)$/i
     ];
 
-    return skipPatterns.some(pattern => pattern.test(relativePath));
+    // Check built-in patterns
+    if (skipPatterns.some(pattern => pattern.test(relativePath))) {
+      return true;
+    }
+
+    // Check custom ignore patterns
+    const customPatterns = this.getCustomIgnorePatterns();
+    if (customPatterns.length > 0) {
+      const ig = ignore().add(customPatterns);
+      if (ig.ignores(relativePath)) {
+        return true;
+      }
+    }
+
+    // Check .gitignore if enabled and we have a workspace folder
+    if (this.shouldRespectGitignore() && workspaceFolder) {
+      const gitignore = this.gitignoreCache.get(workspaceFolder);
+      if (gitignore && gitignore.ignores(relativePath)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   setWebviewProvider(provider: SnapshotWebviewProvider) {
@@ -765,7 +828,7 @@ export class SnapshotManager {
                     const baseDir = snapshotRoot || workspaceFolder.uri.fsPath;
                     const relativePath = path.relative(baseDir, uri.fsPath);
                     
-                    if (this.shouldSkipFile(relativePath)) {
+                    if (this.shouldSkipFile(relativePath, workspaceFolder.uri.fsPath)) {
                         skippedFiles++;
                         return null;
                     }
@@ -796,7 +859,7 @@ export class SnapshotManager {
     }
 
     if (skippedFiles > 0) {
-        vscode.window.showInformationMessage(`Snapshot completed. Skipped ${skippedFiles} non-text file(s).`);
+        vscode.window.showInformationMessage(`Snapshot completed. Skipped ${skippedFiles} file(s).`);
     }
 
     return results;
@@ -1471,5 +1534,42 @@ export class SnapshotManager {
     const snapshots = this.getSnapshots();
     snapshots.push(snapshot);
     await this.saveSnapshots(snapshots);
+  }
+
+  private async loadGitignore(workspaceFolder: string): Promise<ReturnType<typeof ignore> | undefined> {
+    // Check if we have a cached instance
+    if (this.gitignoreCache.has(workspaceFolder)) {
+      return this.gitignoreCache.get(workspaceFolder);
+    }
+
+    try {
+      const gitignorePath = path.join(workspaceFolder, '.gitignore');
+      const gitignoreUri = vscode.Uri.file(gitignorePath);
+      
+      try {
+        await vscode.workspace.fs.stat(gitignoreUri);
+      } catch {
+        // No .gitignore file found
+        return undefined;
+      }
+
+      const gitignoreContent = await vscode.workspace.fs.readFile(gitignoreUri);
+      const ig = ignore().add(gitignoreContent.toString());
+      this.gitignoreCache.set(workspaceFolder, ig);
+      return ig;
+    } catch (error) {
+      console.error('Error loading .gitignore:', error);
+      return undefined;
+    }
+  }
+
+  private getCustomIgnorePatterns(): string[] {
+    const config = vscode.workspace.getConfiguration('localSnapshots');
+    return config.get<string[]>('customIgnorePatterns', []);
+  }
+
+  private shouldRespectGitignore(): boolean {
+    const config = vscode.workspace.getConfiguration('localSnapshots');
+    return config.get<boolean>('respectGitignore', true);
   }
 }
