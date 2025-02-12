@@ -2,7 +2,7 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Create and manage local snapshots of your workspace files",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
@@ -119,6 +119,25 @@
           "items": {
             "type": "string"
           }
+        },
+        "localSnapshots.batchSize": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "description": "Number of files to process in each batch during snapshot operations"
+        },
+        "localSnapshots.batchDelay": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "description": "Delay in milliseconds between processing batches"
+        },
+        "localSnapshots.maxParallelBatches": {
+          "type": "number",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Maximum number of batches to process in parallel (higher values may improve performance on powerful machines)"
         }
       }
     },

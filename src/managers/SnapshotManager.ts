@@ -7,9 +7,7 @@ import { SnapshotTreeWebviewProvider } from '../views/SnapshotTreeWebviewProvide
 import ignore from 'ignore';
 
 // Constants for file processing
-
-const BATCH_SIZE = 10; // Process files in batches of 10
-
+const DEFAULT_EXCLUDE_PATTERN = '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**,**/.next/**,**/build/**,**/.cache/**,**/coverage/**}';
 
 export class SnapshotManager {
   private context: vscode.ExtensionContext;
@@ -26,6 +24,18 @@ export class SnapshotManager {
   private statusBarItem: vscode.StatusBarItem;
   private countdownInterval?: NodeJS.Timeout;
   private gitignoreCache: Map<string, ReturnType<typeof ignore>> = new Map();
+
+  private getBatchSize(): number {
+    return vscode.workspace.getConfiguration('localSnapshots').get('batchSize', 50);
+  }
+
+  private getBatchDelay(): number {
+    return vscode.workspace.getConfiguration('localSnapshots').get('batchDelay', 10);
+  }
+
+  private getMaxParallelBatches(): number {
+    return vscode.workspace.getConfiguration('localSnapshots').get('maxParallelBatches', 1);
+  }
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
@@ -364,8 +374,8 @@ export class SnapshotManager {
             '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
         );
 
-        for (let i = 0; i < uris.length; i += BATCH_SIZE) {
-            const batch = uris.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < uris.length; i += this.getBatchSize()) {
+            const batch = uris.slice(i, i + this.getBatchSize());
             
             for (const uri of batch) {
                 try {
@@ -622,46 +632,47 @@ export class SnapshotManager {
   }
 
   private shouldSkipFile(relativePath: string, workspaceFolder?: string): boolean {
-    // Check built-in skip patterns first
-    const skipPatterns = [
-      // System files
-      /\.DS_Store/,
-      /Thumbs\.db/,
-      /desktop\.ini/,
-
-      // Binary and non-text files
-      /\.(jpg|jpeg|png|gif|ico|webp|bmp)$/i,
-      /\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i,
-      /\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i,
-      /\.(zip|rar|7z|tar|gz)$/i,
-      /\.(exe|dll|so|dylib)$/i,
-      /\.(ttf|otf|eot|woff|woff2)$/i,
-      /\.(pyc|pyo|pyd)$/i,
-      /\.(class|jar)$/i,
-      /\.(db|sqlite|mdb)$/i,
-      /\.(bin|dat|bak)$/i
+    // Quick check for common binary and large files first
+    const quickSkipPatterns = [
+        /\.(jpg|jpeg|png|gif|ico|webp|bmp)$/i,
+        /\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i,
+        /\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i,
+        /\.(zip|rar|7z|tar|gz)$/i,
+        /\.(exe|dll|so|dylib)$/i,
+        /\.(ttf|otf|eot|woff|woff2)$/i,
+        /\.(pyc|pyo|pyd)$/i,
+        /\.(class|jar)$/i,
+        /\.(db|sqlite|mdb)$/i,
+        /\.(bin|dat|bak)$/i,
+        /^node_modules\//,
+        /^\.git\//,
+        /^dist\//,
+        /^build\//,
+        /^\.next\//,
+        /^coverage\//,
+        /^\.cache\//
     ];
 
-    // Check built-in patterns
-    if (skipPatterns.some(pattern => pattern.test(relativePath))) {
-      return true;
+    // Quick check first
+    if (quickSkipPatterns.some(pattern => pattern.test(relativePath))) {
+        return true;
     }
 
     // Check custom ignore patterns
     const customPatterns = this.getCustomIgnorePatterns();
     if (customPatterns.length > 0) {
-      const ig = ignore().add(customPatterns);
-      if (ig.ignores(relativePath)) {
-        return true;
-      }
+        const ig = ignore().add(customPatterns);
+        if (ig.ignores(relativePath)) {
+            return true;
+        }
     }
 
     // Check .gitignore if enabled and we have a workspace folder
     if (this.shouldRespectGitignore() && workspaceFolder) {
-      const gitignore = this.gitignoreCache.get(workspaceFolder);
-      if (gitignore && gitignore.ignores(relativePath)) {
-        return true;
-      }
+        const gitignore = this.gitignoreCache.get(workspaceFolder);
+        if (gitignore && gitignore.ignores(relativePath)) {
+            return true;
+        }
     }
 
     return false;
@@ -810,60 +821,99 @@ export class SnapshotManager {
   private async processFilesInBatches(
     files: vscode.Uri[],
     workspaceFolder: vscode.WorkspaceFolder,
-    progress: vscode.Progress<{ message?: string; increment?: number }>,
-    totalFiles: number,
+    progress?: vscode.Progress<{ message?: string; increment?: number }>,
+    totalFiles?: number,
     snapshotRoot?: string
   ): Promise<FileSnapshot[]> {
     const results: FileSnapshot[] = [];
     let processedFiles = 0;
     let skippedFiles = 0;
+    const startTime = Date.now();
+    const batchSize = this.getBatchSize();
+    const maxParallelBatches = this.getMaxParallelBatches();
+    const batchDelay = this.getBatchDelay();
 
-    // Process files in batches
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-        const batch = files.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(
-            batch.map(async (uri) => {
-                try {
-                    // Use snapshotRoot if provided, otherwise use workspace folder
-                    const baseDir = snapshotRoot || workspaceFolder.uri.fsPath;
-                    const relativePath = path.relative(baseDir, uri.fsPath);
-                    
-                    if (this.shouldSkipFile(relativePath, workspaceFolder.uri.fsPath)) {
-                        skippedFiles++;
-                        return null;
-                    }
+    // Create a Map to cache file stats
+    const fileStatsCache = new Map<string, { mtime: number, size: number }>();
 
-                    const content = await this.readFileContent(uri);
-                    processedFiles++;
-                    progress.report({
-                        message: `Processing files (${processedFiles}/${totalFiles - skippedFiles})`,
-                        increment: (100 / (totalFiles - skippedFiles))
-                    });
+    // Process files in parallel batches
+    for (let i = 0; i < files.length; i += batchSize * maxParallelBatches) {
+      const parallelBatches = [];
+      
+      // Create multiple batches to process in parallel
+      for (let j = 0; j < maxParallelBatches && i + j * batchSize < files.length; j++) {
+        const batchStart = i + j * batchSize;
+        const batch = files.slice(batchStart, batchStart + batchSize);
+        
+        parallelBatches.push(Promise.all(batch.map(async (uri) => {
+          try {
+            const baseDir = snapshotRoot || workspaceFolder.uri.fsPath;
+            const relativePath = path.relative(baseDir, uri.fsPath);
+            
+            if (this.shouldSkipFile(relativePath, workspaceFolder.uri.fsPath)) {
+              skippedFiles++;
+              return null;
+            }
 
-                    return {
-                        content,
-                        relativePath
-                    };
-                } catch (error) {
-                    console.error(`Failed to process file: ${uri.fsPath}`, error);
-                    skippedFiles++;
-                    return null;
-                }
-            })
-        );
+            let stats;
+            if (fileStatsCache.has(uri.fsPath)) {
+              stats = fileStatsCache.get(uri.fsPath)!;
+            } else {
+              const fileStat = await vscode.workspace.fs.stat(uri);
+              stats = { mtime: fileStat.mtime, size: fileStat.size };
+              fileStatsCache.set(uri.fsPath, stats);
+            }
 
-        results.push(...batchResults.filter((result): result is FileSnapshot => result !== null));
+            const content = await this.readFileContent(uri);
+            processedFiles++;
 
-        // Add a small delay between batches to allow garbage collection
-        await new Promise(resolve => setTimeout(resolve, 100));
+            if (progress && totalFiles) {
+              const elapsed = Date.now() - startTime;
+              const rate = processedFiles / (elapsed / 1000);
+              progress.report({
+                message: `Processing files (${processedFiles}/${totalFiles - skippedFiles}) - ${rate.toFixed(1)} files/sec`,
+                increment: (100 / (totalFiles - skippedFiles))
+              });
+            }
+
+            const snapshot: FileSnapshot = {
+              content,
+              relativePath,
+              mtime: stats.mtime,
+              size: stats.size
+            };
+            return snapshot;
+          } catch (error) {
+            console.error(`Failed to process file: ${uri.fsPath}`, error);
+            skippedFiles++;
+            return null;
+          }
+        })));
+      }
+
+      // Wait for all parallel batches to complete
+      const batchResults = await Promise.all(parallelBatches);
+      const validResults = batchResults.flat().filter((result): result is FileSnapshot => result !== null);
+      results.push(...validResults);
+
+      // Small delay between batch groups
+      if (i + batchSize * maxParallelBatches < files.length) {
+        await new Promise(resolve => setTimeout(resolve, batchDelay));
+      }
     }
 
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     if (skippedFiles > 0) {
-        vscode.window.showInformationMessage(`Snapshot completed. Skipped ${skippedFiles} file(s).`);
+      vscode.window.showInformationMessage(
+        `Snapshot created in ${elapsed}s (${skippedFiles} files skipped)`
+      );
+    } else {
+      vscode.window.showInformationMessage(
+        `Snapshot created in ${elapsed}s`
+      );
     }
 
     return results;
-
   }
 
   async takeSnapshot(name?: string): Promise<void> {
@@ -918,7 +968,12 @@ export class SnapshotManager {
       const files: FileSnapshot[] = [];
       for (const folder of workspaceFolders) {
         const folderUris = allUris.filter(uri => uri.fsPath.startsWith(folder.uri.fsPath));
-        const folderFiles = await this.processFilesInBatches(folderUris, folder, progress, totalFiles);
+        const folderFiles = await this.processFilesInBatches(
+          folderUris,
+          folder,
+          progress,
+          totalFiles
+        );
         files.push(...folderFiles);
       }
 

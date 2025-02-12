@@ -2,6 +2,19 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.10] - 2025-02-12
+
+### 🚀 Major Performance & Configurability Improvements
+
+- **Configurable Batch Processing:** Added new settings `localSnapshots.batchSize`, `localSnapshots.batchDelay`, and `localSnapshots.maxParallelBatches` to allow users to adjust snapshot processing behavior.
+- **Faster Processing:** Improved parallel file processing and smarter batching by replacing hardcoded constants with configurable methods, resulting in significantly faster snapshot creation for large workspaces.
+- **Enhanced Type Safety & Code Quality:** Resolved multiple linter errors by removing duplicate interface declarations and updating method signatures to ensure proper type compatibility (e.g., for progress reporting).
+- **Smarter File Handling:** Implemented caching for file metadata and optimized file filtering based on ignore patterns (including .gitignore integration) and common binary file types.
+
+💡 **Tips:**
+- Adjust the new batch processing settings in the extension configuration to optimize performance for your setup.
+- Leverage .gitignore integration and custom ignore patterns for even better snapshot efficiency.
+
 ## [0.0.9] - 2025-02-12
 
 ### 🎉 New Feature: Ignore Patterns Management

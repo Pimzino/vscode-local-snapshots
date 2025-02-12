@@ -1,6 +1,8 @@
 export interface FileSnapshot {
 	content: string;
 	relativePath: string;
+	mtime?: number;  // Optional to maintain backward compatibility
+	size?: number;   // Optional to maintain backward compatibility
 }
 
 export interface Snapshot {
