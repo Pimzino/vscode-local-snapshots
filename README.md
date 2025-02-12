@@ -1,7 +1,7 @@
 # Local Snapshots for VS Code
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Pimzino/vscode-local-snapshots/main/resources/icon.png" alt="Local Snapshots Logo" width="128" height="128">
+  <img src="[https://raw.githubusercontent.com/Pimzino/vscode-local-snapshots/main/resources/icon.png](https://raw.githubusercontent.com/Pimzino/vscode-local-snapshots/refs/heads/master/resources/icon.svg)" alt="Local Snapshots Logo" width="128" height="128">
 
   [![GitHub stars](https://img.shields.io/github/stars/Pimzino/vscode-local-snapshots?style=social)](https://github.com/Pimzino/vscode-local-snapshots)
   [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow.svg?style=flat&logo=buy-me-a-coffee)](https://www.buymeacoffee.com/pimzino)
