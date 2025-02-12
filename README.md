@@ -4,9 +4,11 @@
   <img src="https://github.com/Pimzino/vscode-local-snapshots/blob/master/resources/icon.png?raw=true" alt="Local Snapshots Logo" width="128" height="128">
 </div>
 
-<div align="centre">
+<div align="center">
+  
   [![GitHub stars](https://img.shields.io/github/stars/Pimzino/vscode-local-snapshots?style=social)](https://github.com/Pimzino/vscode-local-snapshots)
   [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow.svg?style=flat&logo=buy-me-a-coffee)](https://www.buymeacoffee.com/pimzino)
+  
 </div>
 
 Take and restore snapshots of your workspace files with ease. Local Snapshots provides a powerful way to create, manage, and restore file snapshots directly within VS Code, offering both manual and automatic snapshot capabilities.
