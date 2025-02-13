@@ -2,7 +2,7 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Create and manage local snapshots of your workspace files",
-  "version": "0.0.10",
+  "version": "0.0.11",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
@@ -138,6 +138,18 @@
           "minimum": 1,
           "maximum": 10,
           "description": "Maximum number of batches to process in parallel (higher values may improve performance on powerful machines)"
+        },
+        "localSnapshots.enableApiServer": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable the REST API server for programmatic snapshot creation. Configure the port before enabling."
+        },
+        "localSnapshots.apiPort": {
+          "type": "number",
+          "default": 45678,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "Port number for the REST API server (configure before enabling the server). Choose an uncommon port to avoid conflicts."
         }
       }
     },
@@ -234,6 +246,12 @@
         "title": "Add to Ignore Patterns",
         "category": "Local Snapshots",
         "icon": "$(exclude)"
+      },
+      {
+        "command": "local-snapshots.copyRules",
+        "title": "Copy AI Safety Rules",
+        "category": "Local Snapshots",
+        "icon": "$(copy)"
       }
     ],
     "menus": {
@@ -259,9 +277,14 @@
           "group": "navigation@4"
         },
         {
-          "command": "local-snapshots.openSettings",
+          "command": "local-snapshots.copyRules",
           "when": "view == local-snapshots-list",
           "group": "navigation@5"
+        },
+        {
+          "command": "local-snapshots.openSettings",
+          "when": "view == local-snapshots-list",
+          "group": "navigation@6"
         }
       ],
       "explorer/context": [
@@ -314,24 +337,26 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "20.x",
+    "@types/node": "^16.18.34",
     "@types/vscode": "^1.74.0",
-    "@typescript-eslint/eslint-plugin": "^8.17.0",
-    "@typescript-eslint/parser": "^8.17.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
     "@vscode/codicons": "^0.0.35",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
-    "eslint": "^9.16.0",
+    "eslint": "^8.54.0",
     "ts-loader": "^9.5.1",
-    "typescript": "^5.7.2",
-    "webpack": "^5.95.0",
-    "webpack-cli": "^5.1.4"
+    "typescript": "^5.3.2",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "@types/express": "^4.17.21"
   },
   "dependencies": {
     "@types/uuid": "^10.0.0",
     "uuid": "^11.0.5",
     "@vscode/codicons": "^0.0.35",
     "@vscode/webview-ui-toolkit": "^1.4.0",
-    "ignore": "^5.3.1"
+    "ignore": "^5.3.1",
+    "express": "^4.18.2"
   }
 }

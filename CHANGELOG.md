@@ -2,6 +2,39 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.11] - 2025-02-13
+
+### 🌐 New Feature: REST API for Automation
+
+We've added a simple REST API that allows other tools (like AI assistants) to programmatically create snapshots!
+
+#### ✨ What's New
+- REST API server for creating snapshots programmatically
+- Status bar indicator showing API status and port
+- Secure port management with conflict detection
+- Easy-to-use PowerShell and curl examples
+
+#### 🛠️ New Settings
+- `localSnapshots.enableApiServer`: Toggle the REST API server
+- `localSnapshots.apiPort`: Configure the port (default: 45678)
+
+#### 💡 How to Use
+1. Configure your preferred port in settings (default: 45678)
+2. Enable the API server
+3. Monitor the status in the status bar
+4. Create snapshots using simple HTTP requests:
+   ```powershell
+   Invoke-RestMethod -Method Post -Uri "http://localhost:45678/snapshot" `
+     -Body (@{name="Pre-AI-Changes"} | ConvertTo-Json) `
+     -ContentType "application/json"
+   ```
+
+#### 🔒 Safety Features
+- Uses a non-standard port (45678) to avoid conflicts
+- Automatic port conflict detection
+- Easy port reconfiguration if needed
+- API server automatically stops when disabled
+
 ## [0.0.10] - 2025-02-12
 
 ### 🚀 Major Performance & Configurability Improvements

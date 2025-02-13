@@ -80,7 +80,85 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 ### Display Settings
 * `local-snapshots.diffViewStyle`: Choose how to display file differences: side-by-side, inline, or both views (default: `side-by-side`)
 
+### REST API Settings
+* `local-snapshots.enableApiServer`: Enable/disable the REST API server (default: `false`)
+* `local-snapshots.apiPort`: Port number for the REST API server (default: `45678`). Configure before enabling the server.
+
 ## Usage Tips
+
+### Using the REST API
+The extension can expose a simple REST API for programmatic snapshot creation. To use it:
+
+1. Configure the API port in settings: `localSnapshots.apiPort` (default is 45678)
+2. Enable the API server in settings: `localSnapshots.enableApiServer`
+3. The API status and port will be shown in the status bar
+4. Create snapshots using HTTP requests:
+
+#### PowerShell Examples
+```powershell
+# Using Invoke-RestMethod (recommended)
+$body = @{
+    name = "Pre-AI-Changes"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Method Post `
+    -Uri "http://localhost:45678/snapshot" `
+    -Body $body `
+    -ContentType "application/json"
+
+# List all snapshots
+Invoke-RestMethod -Method Get -Uri "http://localhost:45678/snapshots"
+
+# Check API health
+Invoke-RestMethod -Method Get -Uri "http://localhost:45678/health"
+```
+
+#### Curl Examples
+```bash
+# Create a snapshot (Windows PowerShell)
+curl.exe -X POST http://localhost:45678/snapshot `
+  -H "Content-Type: application/json" `
+  -d "{\"name\":\"Pre-AI-Changes\"}"
+
+# Create a snapshot (Unix/Git Bash)
+curl -X POST http://localhost:45678/snapshot \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Pre-AI-Changes"}'
+
+# List all snapshots
+curl http://localhost:45678/snapshots
+
+# Check API health
+curl http://localhost:45678/health
+```
+
+#### API Endpoints
+- `POST /snapshot`: Create a new snapshot
+  - Body: `{ "name": "snapshot-name" }`
+  - Response: `{ "success": true, "message": "..." }`
+- `GET /snapshots`: List all snapshots
+  - Response: `{ "success": true, "snapshots": [...] }`
+- `GET /health`: Check API status
+  - Response: `{ "status": "ok" }`
+
+#### Error Handling
+The API returns detailed error messages in JSON format:
+```json
+{
+    "error": "Error type",
+    "details": "Detailed error message"
+}
+```
+
+Common error codes:
+- 400: Bad Request (invalid JSON or missing fields)
+- 404: Endpoint not found
+- 500: Server error (snapshot operation failed)
+
+If the port is already in use, you'll be prompted to either:
+- Configure a different port
+- Disable the API server
 
 ### Taking Snapshots
 - Use named snapshots for important changes or milestones
