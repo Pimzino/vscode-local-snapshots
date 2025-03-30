@@ -61,6 +61,7 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 2. Access Local Snapshots from the activity bar (look for the snapshot icon)
 3. Take your first snapshot using the "Take Named Snapshot" button
 4. View and manage your snapshots in the sidebar
+5. Configure the extension using the custom settings page (click the gear icon in the sidebar)
 
 ## Extension Settings
 
@@ -80,23 +81,21 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 ### Display Settings
 * `local-snapshots.diffViewStyle`: Choose how to display file differences: side-by-side, inline, or both views (default: `side-by-side`)
 
-### REST API Settings
+### Server Settings
 * `local-snapshots.enableApiServer`: Enable/disable the REST API server (default: `false`)
-* `local-snapshots.apiPort`: Port number for the REST API server (default: `45678`). Configure before enabling the server.
-
-### MCP Server Settings
 * `local-snapshots.enableMcpServer`: Enable/disable the MCP (Model Context Protocol) SSE server (default: `false`)
-* `local-snapshots.mcpPort`: Port number for the MCP SSE server (default: `45679`). Configure before enabling the server.
+
+> **Note:** Ports are now managed automatically. The extension will try to use default ports (45678 for API, 45679 for MCP) first, and if they're in use, it will automatically find an available port.
 
 ## Usage Tips
 
 ### Using the MCP Server
 The extension can expose a Model Context Protocol (MCP) server for AI tool integration. This allows AI tools like Cursor AI to create and manage snapshots directly. To use it:
 
-1. Configure the MCP port in settings: `localSnapshots.mcpPort` (default is 45679)
-2. Enable the MCP server in settings: `localSnapshots.enableMcpServer`
-3. The MCP status and port will be shown in the status bar
-4. Connect your MCP-compatible client (like Cursor AI) to the server using the URL: `http://localhost:45679/sse`
+1. Enable the MCP server in settings: `localSnapshots.enableMcpServer`
+2. The MCP status and actual port will be shown in the status bar
+3. You can also see the connection URL in the custom settings page under the MCP Server tab
+4. Connect your MCP-compatible client (like Cursor AI) to the server using the displayed URL
 
 #### Available MCP Tools
 - `takeNamedSnapshot`: Create a named snapshot of the current workspace
@@ -108,57 +107,65 @@ The extension can expose a Model Context Protocol (MCP) server for AI tool integ
   "mcpServers": {
     "local-snapshots": {
       "transport": "sse",
-      "url": "http://localhost:45679/sse"
+      "url": "http://localhost:PORT/sse"
     }
   }
 }
 ```
 
+> **Note:** Replace `PORT` with the actual port shown in the status bar or settings page. The port may vary if the default port (45679) is already in use.
+
 ### Using the REST API
 The extension can expose a simple REST API for programmatic snapshot creation. To use it:
 
-1. Configure the API port in settings: `localSnapshots.apiPort` (default is 45678)
-2. Enable the API server in settings: `localSnapshots.enableApiServer`
-3. The API status and port will be shown in the status bar
-4. Create snapshots using HTTP requests:
+1. Enable the API server in settings: `localSnapshots.enableApiServer`
+2. The API status and actual port will be shown in the status bar
+3. You can also see the connection URL and example usage in the custom settings page under the API Server tab
+4. Create snapshots using HTTP requests using the displayed port:
 
 #### PowerShell Examples
 ```powershell
 # Using Invoke-RestMethod (recommended)
+# Replace PORT with the actual port shown in the status bar or settings page
+$port = "PORT" # e.g., 45678 or whatever port is shown in the UI
 $body = @{
     name = "Pre-AI-Changes"
 } | ConvertTo-Json
 
 Invoke-RestMethod `
     -Method Post `
-    -Uri "http://localhost:45678/snapshot" `
+    -Uri "http://localhost:$port/snapshot" `
     -Body $body `
     -ContentType "application/json"
 
 # List all snapshots
-Invoke-RestMethod -Method Get -Uri "http://localhost:45678/snapshots"
+Invoke-RestMethod -Method Get -Uri "http://localhost:$port/snapshots"
 
 # Check API health
-Invoke-RestMethod -Method Get -Uri "http://localhost:45678/health"
+Invoke-RestMethod -Method Get -Uri "http://localhost:$port/health"
 ```
 
 #### Curl Examples
 ```bash
+# Replace PORT with the actual port shown in the status bar or settings page
+
 # Create a snapshot (Windows PowerShell)
-curl.exe -X POST http://localhost:45678/snapshot `
+$port = "PORT" # e.g., 45678 or whatever port is shown in the UI
+curl.exe -X POST http://localhost:$port/snapshot `
   -H "Content-Type: application/json" `
   -d "{\"name\":\"Pre-AI-Changes\"}"
 
 # Create a snapshot (Unix/Git Bash)
-curl -X POST http://localhost:45678/snapshot \
+PORT=PORT # e.g., 45678 or whatever port is shown in the UI
+curl -X POST http://localhost:$PORT/snapshot \
   -H "Content-Type: application/json" \
   -d '{"name":"Pre-AI-Changes"}'
 
 # List all snapshots
-curl http://localhost:45678/snapshots
+curl http://localhost:$PORT/snapshots
 
 # Check API health
-curl http://localhost:45678/health
+curl http://localhost:$PORT/health
 ```
 
 #### API Endpoints
@@ -184,9 +191,10 @@ Common error codes:
 - 404: Endpoint not found
 - 500: Server error (snapshot operation failed)
 
-If the port is already in use, you'll be prompted to either:
-- Configure a different port
-- Disable the API server
+If the default port is already in use, the extension will:
+- Automatically find an available port
+- Show a notification with the alternate port being used
+- Update the status bar and settings page with the actual port
 
 ### Taking Snapshots
 - Use named snapshots for important changes or milestones
@@ -200,6 +208,16 @@ If the port is already in use, you'll be prompted to either:
 - Use selective restore to recover specific files
 - Clean up old snapshots regularly using the snapshot limit feature
 - Rename snapshots to keep them organized and meaningful
+
+### Using the Custom Settings Page
+- Access the settings page by clicking the gear icon in the Local Snapshots sidebar
+- Navigate between tabs to configure different aspects of the extension
+- The General tab contains basic settings like automatic snapshots and storage management
+- The Snapshots tab has settings for snapshot behavior and display
+- The API Server tab provides configuration and usage examples for the REST API
+- The MCP Server tab offers settings and connection information for the MCP server
+- Real-time server status and port information is displayed in the respective tabs
+- All changes are immediately saved to your VS Code settings
 
 ### Managing Ignore Patterns
 - Access the ignore patterns manager from the Local Snapshots sidebar

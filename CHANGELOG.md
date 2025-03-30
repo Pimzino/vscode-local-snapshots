@@ -2,7 +2,11 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
-## [0.0.12] - 2025-02-15
+## [0.0.12] - 2025-03-30
+
+### 🚀 Major Update: MCP Server, Custom Settings UI & Dynamic Port Management
+
+This release brings three major improvements: MCP server support for AI integration, a modern custom settings page, and intelligent dynamic port management!
 
 ### 🤖 New Feature: MCP Server for AI Integration
 
@@ -11,27 +15,50 @@ We've added a Model Context Protocol (MCP) server that allows AI tools like Curs
 #### ✨ What's New
 - MCP SSE server for AI tool integration
 - Status bar indicator showing MCP status and port
-- Secure port management with conflict detection
 - Easy configuration for MCP clients
 
 #### 🛠️ New Settings
 - `localSnapshots.enableMcpServer`: Toggle the MCP server
-- `localSnapshots.mcpPort`: Configure the port (default: 45679)
 
 #### 💡 How to Use
-1. Configure your preferred port in settings (default: 45679)
-2. Enable the MCP server
-3. Monitor the status in the status bar
-4. Connect your MCP-compatible client (like Cursor AI) to the server using the URL: `http://localhost:45679/sse`
+1. Enable the MCP server
+2. Monitor the status in the status bar
+3. Connect your MCP-compatible client (like Cursor AI) to the server using the displayed URL
 
 #### 🔧 Available MCP Tools
 - `takeNamedSnapshot`: Create a named snapshot of the current workspace
 
+### 🎛️ New Feature: Custom Settings Page
+
+We've completely redesigned the settings experience with a modern, user-friendly interface!
+
+#### ✨ What's New
+- Tabbed interface for better organization of settings
+- Dedicated tabs for General, Snapshots, API Server, and MCP Server settings
+- Informational panels with usage examples and connection details
+- Real-time updates of server status and port information
+- Improved visual design that matches VS Code's aesthetic
+
+### 🔌 New Feature: Dynamic Port Management
+
+No more port conflicts! The extension now automatically handles port allocation for both API and MCP servers.
+
+#### ✨ What's New
+- Automatic port selection when default ports are in use
+- Real-time port information in the status bar and settings UI
+- Seamless operation across multiple VS Code instances
+- No manual port configuration needed
+
+#### 🔄 Changes
+- Removed manual port configuration settings
+- Servers now automatically find available ports
+- Default ports are still tried first (45678 for API, 45679 for MCP)
+- Clear notifications when alternate ports are being used
+
 #### 🔒 Safety Features
-- Uses a non-standard port (45679) to avoid conflicts
-- Automatic port conflict detection
-- Easy port reconfiguration if needed
-- MCP server automatically stops when disabled
+- Uses non-standard ports by default to avoid conflicts
+- Automatic port conflict resolution
+- Servers automatically stop when disabled
 
 ## [0.0.11] - 2025-02-13
 
