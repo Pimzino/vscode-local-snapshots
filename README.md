@@ -5,10 +5,10 @@
 </div>
 
 <div align="center">
-  
+
   [![GitHub stars](https://img.shields.io/github/stars/Pimzino/vscode-local-snapshots?style=social)](https://github.com/Pimzino/vscode-local-snapshots)
   [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow.svg?style=flat&logo=buy-me-a-coffee)](https://www.buymeacoffee.com/pimzino)
-  
+
 </div>
 
 Take and restore snapshots of your workspace files with ease. Local Snapshots provides a powerful way to create, manage, and restore file snapshots directly within VS Code, offering both manual and automatic snapshot capabilities.
@@ -84,7 +84,35 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 * `local-snapshots.enableApiServer`: Enable/disable the REST API server (default: `false`)
 * `local-snapshots.apiPort`: Port number for the REST API server (default: `45678`). Configure before enabling the server.
 
+### MCP Server Settings
+* `local-snapshots.enableMcpServer`: Enable/disable the MCP (Model Context Protocol) SSE server (default: `false`)
+* `local-snapshots.mcpPort`: Port number for the MCP SSE server (default: `45679`). Configure before enabling the server.
+
 ## Usage Tips
+
+### Using the MCP Server
+The extension can expose a Model Context Protocol (MCP) server for AI tool integration. This allows AI tools like Cursor AI to create and manage snapshots directly. To use it:
+
+1. Configure the MCP port in settings: `localSnapshots.mcpPort` (default is 45679)
+2. Enable the MCP server in settings: `localSnapshots.enableMcpServer`
+3. The MCP status and port will be shown in the status bar
+4. Connect your MCP-compatible client (like Cursor AI) to the server using the URL: `http://localhost:45679/sse`
+
+#### Available MCP Tools
+- `takeNamedSnapshot`: Create a named snapshot of the current workspace
+  - Parameters: `name` (string) - Name for the snapshot
+
+#### MCP Client Configuration Example (Cursor AI)
+```json
+{
+  "mcpServers": {
+    "local-snapshots": {
+      "transport": "sse",
+      "url": "http://localhost:45679/sse"
+    }
+  }
+}
+```
 
 ### Using the REST API
 The extension can expose a simple REST API for programmatic snapshot creation. To use it:

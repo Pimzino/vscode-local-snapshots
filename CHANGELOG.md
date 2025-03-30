@@ -2,6 +2,37 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.12] - 2025-02-15
+
+### 🤖 New Feature: MCP Server for AI Integration
+
+We've added a Model Context Protocol (MCP) server that allows AI tools like Cursor AI to directly create and manage snapshots!
+
+#### ✨ What's New
+- MCP SSE server for AI tool integration
+- Status bar indicator showing MCP status and port
+- Secure port management with conflict detection
+- Easy configuration for MCP clients
+
+#### 🛠️ New Settings
+- `localSnapshots.enableMcpServer`: Toggle the MCP server
+- `localSnapshots.mcpPort`: Configure the port (default: 45679)
+
+#### 💡 How to Use
+1. Configure your preferred port in settings (default: 45679)
+2. Enable the MCP server
+3. Monitor the status in the status bar
+4. Connect your MCP-compatible client (like Cursor AI) to the server using the URL: `http://localhost:45679/sse`
+
+#### 🔧 Available MCP Tools
+- `takeNamedSnapshot`: Create a named snapshot of the current workspace
+
+#### 🔒 Safety Features
+- Uses a non-standard port (45679) to avoid conflicts
+- Automatic port conflict detection
+- Easy port reconfiguration if needed
+- MCP server automatically stops when disabled
+
 ## [0.0.11] - 2025-02-13
 
 ### 🌐 New Feature: REST API for Automation

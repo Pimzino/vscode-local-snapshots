@@ -4,6 +4,8 @@ import { SnapshotWebviewProvider } from './views/SnapshotWebviewProvider';
 import { registerSnapshotCommands } from './commands/snapshotCommands';
 import { IgnorePatternsWebviewProvider } from './views/IgnorePatternsWebviewProvider';
 import { ApiServer } from './api/server';
+import { MCPServer } from './mcp/server';
+import { registerMCPTools } from './mcp/mcpTools';
 import path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -13,8 +15,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const snapshotManager = new SnapshotManager(context);
 	let apiServer: ApiServer | undefined;
+	let mcpServer: MCPServer | undefined;
 
-	// Create status bar item for API server
+	// Create status bar items for API and MCP servers
 	const apiStatusBarItem = vscode.window.createStatusBarItem(
 		vscode.StatusBarAlignment.Right,
 		100
@@ -22,7 +25,14 @@ export function activate(context: vscode.ExtensionContext) {
 	apiStatusBarItem.command = 'local-snapshots.openSettings';
 	context.subscriptions.push(apiStatusBarItem);
 
-	function updateStatusBar(isEnabled: boolean, port?: number) {
+	const mcpStatusBarItem = vscode.window.createStatusBarItem(
+		vscode.StatusBarAlignment.Right,
+		99
+	);
+	mcpStatusBarItem.command = 'local-snapshots.openSettings';
+	context.subscriptions.push(mcpStatusBarItem);
+
+	function updateApiStatusBar(isEnabled: boolean, port?: number) {
 		if (isEnabled && port) {
 			apiStatusBarItem.text = `$(radio-tower) API: ${port}`;
 			apiStatusBarItem.tooltip = `Local Snapshots API running on port ${port}. Click to change settings.`;
@@ -31,6 +41,18 @@ export function activate(context: vscode.ExtensionContext) {
 			apiStatusBarItem.text = `$(radio-tower) API: Off`;
 			apiStatusBarItem.tooltip = 'Local Snapshots API is disabled. Click to change settings.';
 			apiStatusBarItem.show();
+		}
+	}
+
+	function updateMcpStatusBar(isEnabled: boolean, port?: number) {
+		if (isEnabled && port) {
+			mcpStatusBarItem.text = `$(plug) MCP: ${port}`;
+			mcpStatusBarItem.tooltip = `Local Snapshots MCP server running on port ${port}. Click to change settings.`;
+			mcpStatusBarItem.show();
+		} else {
+			mcpStatusBarItem.text = `$(plug) MCP: Off`;
+			mcpStatusBarItem.tooltip = 'Local Snapshots MCP server is disabled. Click to change settings.';
+			mcpStatusBarItem.show();
 		}
 	}
 
@@ -47,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		// Update status bar
-		updateStatusBar(isEnabled, isEnabled ? port : undefined);
+		updateApiStatusBar(isEnabled, isEnabled ? port : undefined);
 
 		// Start new server if enabled
 		if (isEnabled) {
@@ -58,7 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 				console.error('Failed to start API server:', errorMessage);
-				
+
 				if (error instanceof Error && error.message.includes('EADDRINUSE')) {
 					const action = await vscode.window.showErrorMessage(
 						`Port ${port} is already in use. Would you like to configure a different port?`,
@@ -85,27 +107,92 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// Function to manage MCP server state
+	async function updateMcpServer() {
+		const config = vscode.workspace.getConfiguration('localSnapshots');
+		const isEnabled = config.get<boolean>('enableMcpServer', false);
+		const port = config.get<number>('mcpPort', 45679);
+
+		// Stop existing server if it's running
+		if (mcpServer) {
+			mcpServer.stop();
+			mcpServer = undefined;
+		}
+
+		// Update status bar
+		updateMcpStatusBar(isEnabled, isEnabled ? port : undefined);
+
+		// Start new server if enabled
+		if (isEnabled) {
+			try {
+				mcpServer = new MCPServer(snapshotManager);
+				await mcpServer.start(port);
+				console.log(`MCP server started on port ${port}`);
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+				console.error('Failed to start MCP server:', errorMessage);
+
+				if (error instanceof Error && error.message.includes('EADDRINUSE')) {
+					const action = await vscode.window.showErrorMessage(
+						`Port ${port} is already in use. Would you like to configure a different port?`,
+						'Open Settings',
+						'Disable MCP'
+					);
+
+					if (action === 'Open Settings') {
+						await vscode.commands.executeCommand(
+							'workbench.action.openSettings',
+							'@ext:Pimzino.local-snapshots.mcpPort'
+						);
+					} else {
+						// Disable the MCP server
+						await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
+					}
+				} else {
+					vscode.window.showErrorMessage(`Failed to start MCP server: ${errorMessage}`);
+					await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
+				}
+			}
+		} else {
+			console.log('MCP server is disabled');
+		}
+	}
+
 	// Make sure to dispose everything when deactivating
-	context.subscriptions.push({ 
+	context.subscriptions.push({
 		dispose: () => {
 			snapshotManager.dispose();
 			if (apiServer) {
 				apiServer.stop();
 				apiServer = undefined;
 			}
+			if (mcpServer) {
+				mcpServer.stop();
+				mcpServer = undefined;
+			}
 			apiStatusBarItem.dispose();
+			mcpStatusBarItem.dispose();
 		}
 	});
 
-	// Initial API server setup
+	// Initial server setup
 	updateApiServer();
+	updateMcpServer();
+
+	// Register MCP tools
+	const mcpToolDisposables = registerMCPTools(snapshotManager);
+	context.subscriptions.push(...mcpToolDisposables);
 
 	// Watch for configuration changes
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('localSnapshots.enableApiServer') || 
+			if (e.affectsConfiguration('localSnapshots.enableApiServer') ||
 				e.affectsConfiguration('localSnapshots.apiPort')) {
 				updateApiServer();
+			}
+			if (e.affectsConfiguration('localSnapshots.enableMcpServer') ||
+				e.affectsConfiguration('localSnapshots.mcpPort')) {
+				updateMcpServer();
 			}
 		})
 	);

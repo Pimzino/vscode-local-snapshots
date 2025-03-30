@@ -3,6 +3,8 @@
 ## Pre-Change Snapshot Requirement
 The AI MUST follow these steps in order:
 
+### Option 1: Using REST API
+
 1. Check API health and wait for response:
    ```powershell
    # PowerShell (Windows)
@@ -19,7 +21,7 @@ The AI MUST follow these steps in order:
    response=$(curl -s -w "\n%{http_code}" http://localhost:45678/health)
    status_code=$(echo "$response" | tail -n1)
    response_body=$(echo "$response" | sed \$d)
-   
+
    if [ "$status_code" != "200" ] || [ "$(echo "$response_body" | jq -r '.status')" != "ok" ]; then
        echo "⚠️ API not available. Cannot proceed with changes."
        exit 1
@@ -40,8 +42,8 @@ The AI MUST follow these steps in order:
            -Body $body `
            -ContentType "application/json"
 
-       if (-not $response.success) { 
-           if ($response.error -eq "Failed to create snapshot" -and 
+       if (-not $response.success) {
+           if ($response.error -eq "Failed to create snapshot" -and
                $response.details -eq "A snapshot with this name already exists") {
                # Retry with a numbered variation
                $retryCount = 1
@@ -55,10 +57,10 @@ The AI MUST follow these steps in order:
                        -Uri "http://localhost:45678/snapshot" `
                        -Body $body `
                        -ContentType "application/json"
-                   
+
                    $retryCount++
-               } while ($response.error -eq "Failed to create snapshot" -and 
-                       $response.details -eq "A snapshot with this name already exists" -and 
+               } while ($response.error -eq "Failed to create snapshot" -and
+                       $response.details -eq "A snapshot with this name already exists" -and
                        $retryCount -le 5)
 
                if (-not $response.success) { throw "Snapshot failed after retries" }
@@ -69,9 +71,9 @@ The AI MUST follow these steps in order:
 
        # Verify snapshot exists
        $snapshots = Invoke-RestMethod -Method Get -Uri "http://localhost:45678/snapshots"
-       if (-not ($snapshots.snapshots | Where-Object { 
-           $_.name -eq $body.name -or 
-           $_.name -eq "PRE-CHANGE: $USER_PROMPT" 
+       if (-not ($snapshots.snapshots | Where-Object {
+           $_.name -eq $body.name -or
+           $_.name -eq "PRE-CHANGE: $USER_PROMPT"
        })) {
            throw "Snapshot verification failed"
        }
@@ -102,7 +104,7 @@ The AI MUST follow these steps in order:
          [ "$(echo "$response_body" | jq -r '.error')" = "Failed to create snapshot" ] && \
          [ "$(echo "$response_body" | jq -r '.details')" = "A snapshot with this name already exists" ] && \
          [ $retry_count -le 5 ]; do
-       
+
        snapshot_name="PRE-CHANGE ($retry_count): $USER_PROMPT"
        response=$(create_snapshot "$snapshot_name")
        status_code=$(echo "$response" | tail -n1)
@@ -120,8 +122,26 @@ The AI MUST follow these steps in order:
    - Acknowledge snapshot creation success
    - Proceed with requested changes
 
+### Option 2: Using MCP (Model Context Protocol)
+
+If using an MCP-compatible client (like Cursor AI), you can use the MCP tools directly:
+
+```javascript
+// Example of using MCP tools in Cursor AI
+tool.takeNamedSnapshot({
+  name: "PRE-CHANGE: " + USER_PROMPT
+});
+
+// Verify snapshot exists
+const snapshots = tool.listSnapshots();
+const snapshotExists = snapshots.content[0].text.includes("PRE-CHANGE: " + USER_PROMPT);
+if (!snapshotExists) {
+  throw new Error("Snapshot verification failed");
+}
+```
+
 ## ⛔ Strict Requirements
-- MUST wait for and verify API responses
+- MUST wait for and verify API responses or MCP tool results
 - MUST NOT proceed if any step fails
 - MUST NOT make any code changes before snapshot confirmation
 - MUST abort entirely if snapshot cannot be verified
@@ -135,13 +155,13 @@ If any step fails, respond with:
 Cannot proceed with changes. Snapshot creation could not be verified.
 
 Please ensure:
-1. Local Snapshots API is enabled (localSnapshots.enableApiServer = true)
-2. API is responding (port 45678)
-3. Try your request again after verifying API status
+1. Local Snapshots API is enabled (localSnapshots.enableApiServer = true) or MCP server is enabled (localSnapshots.enableMcpServer = true)
+2. API is responding (port 45678) or MCP server is responding (port 45679)
+3. Try your request again after verifying server status
 ```
 
 ## 📋 Dependencies
 - PowerShell: Built into Windows, available for macOS/Linux
 - Bash: Built into macOS/Linux, available via Git Bash on Windows
 - curl: Built into macOS/Linux, Windows 10+
-- jq: Required for JSON parsing in Bash (install via package manager) 
+- jq: Required for JSON parsing in Bash (install via package manager)
