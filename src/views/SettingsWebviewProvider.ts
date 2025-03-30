@@ -1,0 +1,664 @@
+import * as vscode from 'vscode';
+import { ApiServer } from '../api/server';
+import { MCPServer } from '../mcp/server';
+import { SnapshotManager } from '../managers/SnapshotManager';
+
+// Define types for status bar update functions
+type StatusBarUpdateFunction = (isEnabled: boolean, port?: number) => void;
+
+export class SettingsWebviewProvider {
+    private panel: vscode.WebviewPanel | undefined;
+    private readonly extensionUri: vscode.Uri;
+
+    private snapshotManager: SnapshotManager;
+    private apiServer: ApiServer | undefined;
+    private mcpServer: MCPServer | undefined;
+    private updateApiStatusBar: StatusBarUpdateFunction;
+    private updateMcpStatusBar: StatusBarUpdateFunction;
+
+    constructor(
+        extensionUri: vscode.Uri,
+        snapshotManager: SnapshotManager,
+        updateApiStatusBar: StatusBarUpdateFunction,
+        updateMcpStatusBar: StatusBarUpdateFunction
+    ) {
+        this.extensionUri = extensionUri;
+        this.snapshotManager = snapshotManager;
+        this.updateApiStatusBar = updateApiStatusBar;
+        this.updateMcpStatusBar = updateMcpStatusBar;
+
+        // Initialize servers based on current settings
+        this.initializeServers();
+    }
+
+    /**
+     * Initialize servers based on current settings
+     */
+    private async initializeServers() {
+        const config = vscode.workspace.getConfiguration('localSnapshots');
+        const apiEnabled = config.get<boolean>('enableApiServer', false);
+        const mcpEnabled = config.get<boolean>('enableMcpServer', false);
+
+        console.log(`[SettingsProvider] Initializing servers - API: ${apiEnabled}, MCP: ${mcpEnabled}`);
+
+        // Initialize API server if enabled
+        if (apiEnabled) {
+            try {
+                const port = config.get<number>('apiPort', 45678);
+                console.log(`[SettingsProvider] Initializing API server on port ${port}`);
+                this.apiServer = new ApiServer(this.snapshotManager);
+                await this.apiServer.start(port);
+                this.updateApiStatusBar(true, port);
+                console.log(`[SettingsProvider] API server initialized successfully`);
+            } catch (error) {
+                console.error(`[SettingsProvider] Failed to initialize API server:`, error);
+                // Update the setting to false if server failed to start
+                await config.update('enableApiServer', false, vscode.ConfigurationTarget.Global);
+                this.updateApiStatusBar(false);
+            }
+        } else {
+            // Update status bar to show server is disabled
+            this.updateApiStatusBar(false);
+        }
+
+        // Initialize MCP server if enabled
+        if (mcpEnabled) {
+            try {
+                const port = config.get<number>('mcpPort', 45679);
+                console.log(`[SettingsProvider] Initializing MCP server on port ${port}`);
+                this.mcpServer = new MCPServer(this.snapshotManager);
+                await this.mcpServer.start(port);
+                this.updateMcpStatusBar(true, port);
+                console.log(`[SettingsProvider] MCP server initialized successfully`);
+            } catch (error) {
+                console.error(`[SettingsProvider] Failed to initialize MCP server:`, error);
+                // Update the setting to false if server failed to start
+                await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
+                this.updateMcpStatusBar(false);
+            }
+        } else {
+            // Update status bar to show server is disabled
+            this.updateMcpStatusBar(false);
+        }
+    }
+
+    public async show() {
+        // If we already have a panel, show it
+        if (this.panel) {
+            this.panel.reveal(vscode.ViewColumn.One);
+            return;
+        }
+
+        // Otherwise, create a new panel
+        this.panel = vscode.window.createWebviewPanel(
+            'localSnapshotsSettings',
+            'Local Snapshots Settings',
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                localResourceRoots: [this.extensionUri],
+                retainContextWhenHidden: true
+            }
+        );
+
+        // Set the webview's HTML content
+        this.panel.webview.html = await this.getWebviewContent(this.panel.webview);
+
+        // Handle messages from the webview
+        this.panel.webview.onDidReceiveMessage(async (message) => {
+            switch (message.command) {
+                case 'getSettings':
+                    await this.sendSettingsToWebview();
+                    break;
+                case 'updateSetting':
+                    await this.updateSetting(message.key, message.value, message.target);
+                    break;
+                case 'resetSetting':
+                    await this.resetSetting(message.key);
+                    break;
+                case 'resetAllSettings':
+                    await this.resetAllSettings();
+                    break;
+            }
+        });
+
+        // Clean up resources when the panel is closed
+        this.panel.onDidDispose(() => {
+            this.panel = undefined;
+        });
+
+        // Send settings to the webview
+        await this.sendSettingsToWebview();
+    }
+
+    private async sendSettingsToWebview() {
+        if (!this.panel) {
+            return;
+        }
+
+        const config = vscode.workspace.getConfiguration('localSnapshots');
+        const settingsData: Record<string, any> = {};
+        const metadata = this.getSettingsMetadata();
+
+        // Get all settings with their metadata
+        for (const key of Object.keys(metadata)) {
+            settingsData[key] = {
+                value: config.get(key),
+                ...metadata[key]
+            };
+        }
+
+        // Send settings to webview
+        await this.panel.webview.postMessage({
+            command: 'settingsLoaded',
+            settingsData
+        });
+    }
+
+    // Flag to track if we're currently updating a server setting
+    public isUpdatingServerSetting = false;
+
+    private async updateSetting(key: string, value: any, target: vscode.ConfigurationTarget = vscode.ConfigurationTarget.Global) {
+        const config = vscode.workspace.getConfiguration('localSnapshots');
+        console.log(`[SettingsProvider] Updating setting ${key} to ${value}`);
+
+        try {
+            // Special handling for API server
+            if (key === 'enableApiServer') {
+                if (value === true) {
+                    // Enabling API server
+                    console.log(`[SettingsProvider] Directly enabling API server`);
+
+                    // Set flag to prevent race conditions
+                    this.isUpdatingServerSetting = true;
+
+                    try {
+                        // Get the port
+                        const port = config.get<number>('apiPort', 45678);
+
+                        // Stop existing server if it's running
+                        if (this.apiServer) {
+                            console.log('[SettingsProvider] Stopping existing API server');
+                            this.apiServer.stop();
+                            this.apiServer = undefined;
+                        }
+
+                        // Create and start the server
+                        console.log(`[SettingsProvider] Creating new API server on port ${port}`);
+                        this.apiServer = new ApiServer(this.snapshotManager);
+                        await this.apiServer.start(port);
+
+                        // Update the setting
+                        await config.update(key, true, target);
+
+                        // Server started successfully
+                        console.log(`[SettingsProvider] API server started successfully`);
+
+                        // Update status bar
+                        this.updateApiStatusBar(true, port);
+
+                        if (this.panel) {
+                            await this.panel.webview.postMessage({
+                                command: 'settingUpdated',
+                                key,
+                                value: true,
+                                success: true
+                            });
+                        }
+                    } catch (error) {
+                        // Server failed to start
+                        console.error(`[SettingsProvider] Failed to start API server:`, error);
+
+                        // Update the setting to false
+                        await config.update(key, false, target);
+
+                        // Send error message to webview
+                        if (this.panel) {
+                            await this.panel.webview.postMessage({
+                                command: 'settingUpdated',
+                                key,
+                                value: false,
+                                success: false,
+                                error: error instanceof Error ? error.message : 'Unknown error'
+                            });
+                        }
+                    } finally {
+                        // Clear the flag
+                        this.isUpdatingServerSetting = false;
+                    }
+                } else {
+                    // Disabling API server
+                    console.log(`[SettingsProvider] Disabling API server`);
+
+                    // Stop the server
+                    if (this.apiServer) {
+                        console.log('[SettingsProvider] Stopping API server');
+                        this.apiServer.stop();
+                        this.apiServer = undefined;
+                    }
+
+                    // Update the setting
+                    await config.update(key, false, target);
+
+                    // Update status bar
+                    this.updateApiStatusBar(false);
+
+                    // Send success message to webview
+                    if (this.panel) {
+                        await this.panel.webview.postMessage({
+                            command: 'settingUpdated',
+                            key,
+                            value: false,
+                            success: true
+                        });
+                    }
+                }
+            }
+            // Special handling for MCP server
+            else if (key === 'enableMcpServer') {
+                if (value === true) {
+                    // Enabling MCP server
+                    console.log(`[SettingsProvider] Directly enabling MCP server`);
+
+                    // Set flag to prevent race conditions
+                    this.isUpdatingServerSetting = true;
+
+                    try {
+                        // Get the port
+                        const port = config.get<number>('mcpPort', 45679);
+
+                        // Stop existing server if it's running
+                        if (this.mcpServer) {
+                            console.log('[SettingsProvider] Stopping existing MCP server');
+                            this.mcpServer.stop();
+                            this.mcpServer = undefined;
+                        }
+
+                        // Create and start the server
+                        console.log(`[SettingsProvider] Creating new MCP server on port ${port}`);
+                        this.mcpServer = new MCPServer(this.snapshotManager);
+                        await this.mcpServer.start(port);
+
+                        // Update the setting
+                        await config.update(key, true, target);
+
+                        // Server started successfully
+                        console.log(`[SettingsProvider] MCP server started successfully`);
+
+                        // Update status bar
+                        this.updateMcpStatusBar(true, port);
+
+                        if (this.panel) {
+                            await this.panel.webview.postMessage({
+                                command: 'settingUpdated',
+                                key,
+                                value: true,
+                                success: true
+                            });
+                        }
+                    } catch (error) {
+                        // Server failed to start
+                        console.error(`[SettingsProvider] Failed to start MCP server:`, error);
+
+                        // Update the setting to false
+                        await config.update(key, false, target);
+
+                        // Send error message to webview
+                        if (this.panel) {
+                            await this.panel.webview.postMessage({
+                                command: 'settingUpdated',
+                                key,
+                                value: false,
+                                success: false,
+                                error: error instanceof Error ? error.message : 'Unknown error'
+                            });
+                        }
+                    } finally {
+                        // Clear the flag
+                        this.isUpdatingServerSetting = false;
+                    }
+                } else {
+                    // Disabling MCP server
+                    console.log(`[SettingsProvider] Disabling MCP server`);
+
+                    // Stop the server
+                    if (this.mcpServer) {
+                        console.log('[SettingsProvider] Stopping MCP server');
+                        this.mcpServer.stop();
+                        this.mcpServer = undefined;
+                    }
+
+                    // Update the setting
+                    await config.update(key, false, target);
+
+                    // Update status bar
+                    this.updateMcpStatusBar(false);
+
+                    // Send success message to webview
+                    if (this.panel) {
+                        await this.panel.webview.postMessage({
+                            command: 'settingUpdated',
+                            key,
+                            value: false,
+                            success: true
+                        });
+                    }
+                }
+            }
+            // Normal setting update
+            else {
+                console.log(`[SettingsProvider] Performing normal setting update`);
+                await config.update(key, value, target);
+                if (this.panel) {
+                    console.log(`[SettingsProvider] Sending success message to webview`);
+                    await this.panel.webview.postMessage({
+                        command: 'settingUpdated',
+                        key,
+                        value,
+                        success: true
+                    });
+                }
+            }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+            console.error(`[SettingsProvider] Failed to update setting ${key}:`, errorMessage);
+            console.error(`[SettingsProvider] Error stack:`, errorStack);
+
+            if (this.panel) {
+                console.log(`[SettingsProvider] Sending error message to webview`);
+                await this.panel.webview.postMessage({
+                    command: 'settingUpdated',
+                    key,
+                    success: false,
+                    error: errorMessage
+                });
+            }
+        }
+    }
+
+    private async resetSetting(key: string) {
+        const config = vscode.workspace.getConfiguration('localSnapshots');
+        await config.update(key, undefined, vscode.ConfigurationTarget.Global);
+        await this.sendSettingsToWebview();
+    }
+
+    private async resetAllSettings() {
+        const config = vscode.workspace.getConfiguration('localSnapshots');
+
+        for (const key of Object.keys(this.getSettingsMetadata())) {
+            await config.update(key, undefined, vscode.ConfigurationTarget.Global);
+        }
+
+        await this.sendSettingsToWebview();
+    }
+
+    private getSettingsMetadata(): Record<string, { type: string; default: any; description: string; category: string; dependsOn?: string; minimum?: number; maximum?: number; enum?: string[] }> {
+        // This returns metadata about all settings to help with UI generation
+        return {
+            // General Settings
+            'enablePreSaveSnapshots': {
+                type: 'boolean',
+                default: false,
+                description: 'Automatically create snapshots before saving files',
+                category: 'General'
+            },
+            'enableTimedSnapshots': {
+                type: 'boolean',
+                default: false,
+                description: 'Automatically create snapshots at regular intervals',
+                category: 'General'
+            },
+            'timedSnapshotInterval': {
+                type: 'number',
+                default: 300,
+                minimum: 30,
+                description: 'Interval in seconds between automatic snapshots (minimum 30 seconds)',
+                category: 'General',
+                dependsOn: 'enableTimedSnapshots'
+            },
+            'showTimedSnapshotNotifications': {
+                type: 'boolean',
+                default: true,
+                description: 'Show notifications when timed snapshots are created',
+                category: 'General',
+                dependsOn: 'enableTimedSnapshots'
+            },
+            'enableDeleteProtection': {
+                type: 'boolean',
+                default: true,
+                description: 'Show confirmation dialog when deleting snapshots',
+                category: 'General'
+            },
+
+            // Storage Management
+            'limitSnapshotCount': {
+                type: 'boolean',
+                default: false,
+                description: 'Enable maximum snapshot limit',
+                category: 'Storage'
+            },
+            'maxSnapshotCount': {
+                type: 'number',
+                default: 10,
+                minimum: 1,
+                description: 'Maximum number of snapshots to keep',
+                category: 'Storage',
+                dependsOn: 'limitSnapshotCount'
+            },
+            'respectGitignore': {
+                type: 'boolean',
+                default: true,
+                description: 'Use .gitignore patterns to exclude files from snapshots',
+                category: 'Storage'
+            },
+            'customIgnorePatterns': {
+                type: 'array',
+                default: [],
+                description: 'Custom glob patterns to exclude files from snapshots',
+                category: 'Storage'
+            },
+
+            // Performance Settings
+            'batchSize': {
+                type: 'number',
+                default: 50,
+                minimum: 1,
+                description: 'Number of files to process in each batch',
+                category: 'Performance'
+            },
+            'batchDelay': {
+                type: 'number',
+                default: 10,
+                minimum: 0,
+                description: 'Delay in milliseconds between processing batches',
+                category: 'Performance'
+            },
+            'maxParallelBatches': {
+                type: 'number',
+                default: 1,
+                minimum: 1,
+                maximum: 10,
+                description: 'Maximum number of batches to process in parallel',
+                category: 'Performance'
+            },
+
+            // Display Settings
+            'diffViewStyle': {
+                type: 'string',
+                enum: ['side-by-side', 'inline', 'both'],
+                default: 'side-by-side',
+                description: 'Choose how to display file differences',
+                category: 'Display'
+            },
+
+            // API Server Settings
+            'enableApiServer': {
+                type: 'boolean',
+                default: false,
+                description: 'Enable the REST API server',
+                category: 'API Server'
+            },
+            'apiPort': {
+                type: 'number',
+                default: 45678,
+                minimum: 1024,
+                maximum: 65535,
+                description: 'Port number for the REST API server (configure before enabling the server)',
+                category: 'API Server'
+            },
+
+            // MCP Server Settings
+            'enableMcpServer': {
+                type: 'boolean',
+                default: false,
+                description: 'Enable the MCP SSE server',
+                category: 'MCP Server'
+            },
+            'mcpPort': {
+                type: 'number',
+                default: 45679,
+                minimum: 1024,
+                maximum: 65535,
+                description: 'Port number for the MCP SSE server (configure before enabling the server)',
+                category: 'MCP Server'
+            }
+        };
+    }
+
+    private async getWebviewContent(webview: vscode.Webview): Promise<string> {
+        const scriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'settings.js')
+        );
+        const styleUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'settings.css')
+        );
+        const codiconsUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'codicons', 'codicon.css')
+        );
+        const codiconsFontUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'codicons', 'codicon.ttf')
+        );
+
+        const nonce = this.getNonce();
+
+        return `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+            <style>
+                @font-face {
+                    font-family: "codicon";
+                    src: url("${codiconsFontUri}") format("truetype");
+                }
+            </style>
+            <link href="${styleUri}" rel="stylesheet">
+            <link href="${codiconsUri}" rel="stylesheet">
+            <title>Local Snapshots Settings</title>
+        </head>
+        <body>
+            <div class="settings-container">
+                <header class="settings-header">
+                    <h1>
+                        <span class="codicon codicon-settings-gear"></span>
+                        Local Snapshots Settings
+                    </h1>
+                    <div class="header-actions">
+                        <div class="search-container">
+                            <div class="search-input-container">
+                                <span class="codicon codicon-search"></span>
+                                <input type="text" id="settings-search" class="search-input" placeholder="Search settings...">
+                                <button id="clear-search" class="clear-search" title="Clear search">
+                                    <span class="codicon codicon-close"></span>
+                                </button>
+                            </div>
+                        </div>
+                        <button id="resetAllBtn" class="action-button" title="Reset All Settings">
+                            <span class="codicon codicon-discard"></span>
+                            Reset All
+                        </button>
+                    </div>
+                </header>
+
+                <div class="settings-content">
+                    <div class="settings-sidebar">
+                        <ul class="settings-tabs">
+                            <li class="settings-tab active" data-category="General">
+                                <span class="codicon codicon-settings"></span>
+                                General
+                            </li>
+                            <li class="settings-tab" data-category="Storage">
+                                <span class="codicon codicon-database"></span>
+                                Storage
+                            </li>
+                            <li class="settings-tab" data-category="Performance">
+                                <span class="codicon codicon-dashboard"></span>
+                                Performance
+                            </li>
+                            <li class="settings-tab" data-category="Display">
+                                <span class="codicon codicon-eye"></span>
+                                Display
+                            </li>
+                            <li class="settings-tab" data-category="API Server">
+                                <span class="codicon codicon-server"></span>
+                                API Server
+                            </li>
+                            <li class="settings-tab" data-category="MCP Server">
+                                <span class="codicon codicon-radio-tower"></span>
+                                MCP Server
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="settings-panels">
+                        <div id="loading" class="settings-loading">
+                            <span class="codicon codicon-loading codicon-modifier-spin"></span>
+                            Loading settings...
+                        </div>
+
+                        <div id="General" class="settings-panel active"></div>
+                        <div id="Storage" class="settings-panel"></div>
+                        <div id="Performance" class="settings-panel"></div>
+                        <div id="Display" class="settings-panel"></div>
+                        <div id="API Server" class="settings-panel"></div>
+                        <div id="MCP Server" class="settings-panel"></div>
+                    </div>
+                </div>
+            </div>
+
+            <script nonce="${nonce}" src="${scriptUri}"></script>
+        </body>
+        </html>`;
+    }
+
+    private getNonce(): string {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < 32; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+
+    public dispose() {
+        if (this.panel) {
+            this.panel.dispose();
+            this.panel = undefined;
+        }
+
+        // Stop servers if they're running
+        if (this.apiServer) {
+            console.log('[SettingsProvider] Stopping API server on dispose');
+            this.apiServer.stop();
+            this.apiServer = undefined;
+        }
+
+        if (this.mcpServer) {
+            console.log('[SettingsProvider] Stopping MCP server on dispose');
+            this.mcpServer.stop();
+            this.mcpServer = undefined;
+        }
+    }
+}

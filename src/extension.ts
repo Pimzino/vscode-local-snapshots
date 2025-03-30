@@ -3,6 +3,7 @@ import { SnapshotManager } from './managers/SnapshotManager';
 import { SnapshotWebviewProvider } from './views/SnapshotWebviewProvider';
 import { registerSnapshotCommands } from './commands/snapshotCommands';
 import { IgnorePatternsWebviewProvider } from './views/IgnorePatternsWebviewProvider';
+import { SettingsWebviewProvider } from './views/SettingsWebviewProvider';
 import { ApiServer } from './api/server';
 import { MCPServer } from './mcp/server';
 import { registerMCPTools } from './mcp/mcpTools';
@@ -56,14 +57,31 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// Register the settings provider
+	const settingsProvider = new SettingsWebviewProvider(
+		context.extensionUri,
+		snapshotManager,
+		updateApiStatusBar,
+		updateMcpStatusBar
+	);
+
 	// Function to manage API server state
 	async function updateApiServer() {
 		const config = vscode.workspace.getConfiguration('localSnapshots');
 		const isEnabled = config.get<boolean>('enableApiServer', false);
 		const port = config.get<number>('apiPort', 45678);
 
+		console.log(`[Extension] updateApiServer called - isEnabled: ${isEnabled}, port: ${port}`);
+
+		// Skip if the settings provider is currently updating this setting
+		if (settingsProvider.isUpdatingServerSetting) {
+			console.log('[Extension] Skipping API server update because settings provider is updating a server setting');
+			return;
+		}
+
 		// Stop existing server if it's running
 		if (apiServer) {
+			console.log('[Extension] Stopping existing API server');
 			apiServer.stop();
 			apiServer = undefined;
 		}
@@ -73,13 +91,21 @@ export function activate(context: vscode.ExtensionContext) {
 
 		// Start new server if enabled
 		if (isEnabled) {
+			console.log('[Extension] API server is enabled, attempting to start');
 			try {
+				console.log('[Extension] Creating new ApiServer instance');
 				apiServer = new ApiServer(snapshotManager);
+
+				console.log('[Extension] Calling apiServer.start()');
 				await apiServer.start(port);
-				console.log(`API server started on port ${port}`);
+
+				console.log(`[Extension] API server successfully started on port ${port}`);
+				console.log(`[Extension] API server object:`, apiServer ? 'Created successfully' : 'Failed to create');
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-				console.error('Failed to start API server:', errorMessage);
+				const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+				console.error('[Extension] Failed to start API server:', errorMessage);
+				console.error('[Extension] Error stack:', errorStack);
 
 				if (error instanceof Error && error.message.includes('EADDRINUSE')) {
 					const action = await vscode.window.showErrorMessage(
@@ -95,15 +121,18 @@ export function activate(context: vscode.ExtensionContext) {
 						);
 					} else {
 						// Disable the API server
+						console.log('[Extension] Disabling API server due to port conflict');
 						await config.update('enableApiServer', false, vscode.ConfigurationTarget.Global);
 					}
 				} else {
-					vscode.window.showErrorMessage(`Failed to start API server: ${errorMessage}`);
+					const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
+					vscode.window.showErrorMessage(`Failed to start API server: ${detailedError}`);
+					console.log('[Extension] Disabling API server due to startup error');
 					await config.update('enableApiServer', false, vscode.ConfigurationTarget.Global);
 				}
 			}
 		} else {
-			console.log('API server is disabled');
+			console.log('[Extension] API server is disabled');
 		}
 	}
 
@@ -113,8 +142,17 @@ export function activate(context: vscode.ExtensionContext) {
 		const isEnabled = config.get<boolean>('enableMcpServer', false);
 		const port = config.get<number>('mcpPort', 45679);
 
+		console.log(`[Extension] updateMcpServer called - isEnabled: ${isEnabled}, port: ${port}`);
+
+		// Skip if the settings provider is currently updating this setting
+		if (settingsProvider.isUpdatingServerSetting) {
+			console.log('[Extension] Skipping MCP server update because settings provider is updating a server setting');
+			return;
+		}
+
 		// Stop existing server if it's running
 		if (mcpServer) {
+			console.log('[Extension] Stopping existing MCP server');
 			mcpServer.stop();
 			mcpServer = undefined;
 		}
@@ -124,13 +162,21 @@ export function activate(context: vscode.ExtensionContext) {
 
 		// Start new server if enabled
 		if (isEnabled) {
+			console.log('[Extension] MCP server is enabled, attempting to start');
 			try {
+				console.log('[Extension] Creating new MCPServer instance');
 				mcpServer = new MCPServer(snapshotManager);
+
+				console.log('[Extension] Calling mcpServer.start()');
 				await mcpServer.start(port);
-				console.log(`MCP server started on port ${port}`);
+
+				console.log(`[Extension] MCP server successfully started on port ${port}`);
+				console.log(`[Extension] MCP server object:`, mcpServer ? 'Created successfully' : 'Failed to create');
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-				console.error('Failed to start MCP server:', errorMessage);
+				const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+				console.error('[Extension] Failed to start MCP server:', errorMessage);
+				console.error('[Extension] Error stack:', errorStack);
 
 				if (error instanceof Error && error.message.includes('EADDRINUSE')) {
 					const action = await vscode.window.showErrorMessage(
@@ -146,15 +192,18 @@ export function activate(context: vscode.ExtensionContext) {
 						);
 					} else {
 						// Disable the MCP server
+						console.log('[Extension] Disabling MCP server due to port conflict');
 						await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
 					}
 				} else {
-					vscode.window.showErrorMessage(`Failed to start MCP server: ${errorMessage}`);
+					const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
+					vscode.window.showErrorMessage(`Failed to start MCP server: ${detailedError}`);
+					console.log('[Extension] Disabling MCP server due to startup error');
 					await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
 				}
 			}
 		} else {
-			console.log('MCP server is disabled');
+			console.log('[Extension] MCP server is disabled');
 		}
 	}
 
@@ -162,6 +211,11 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push({
 		dispose: () => {
 			snapshotManager.dispose();
+
+			// Dispose the settings provider (which will stop its servers)
+			settingsProvider.dispose();
+
+			// Stop the main servers if they're running
 			if (apiServer) {
 				apiServer.stop();
 				apiServer = undefined;
@@ -175,23 +229,33 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	// Initial server setup
-	updateApiServer();
-	updateMcpServer();
+	// Initial server setup is now handled by the settings provider
 
 	// Register MCP tools
 	const mcpToolDisposables = registerMCPTools(snapshotManager);
 	context.subscriptions.push(...mcpToolDisposables);
 
+	// Register the settings provider (moved above to ensure it's defined before usage)
+
 	// Watch for configuration changes
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(e => {
+			console.log('[Extension] Configuration changed:', e);
+
+			// Skip if the settings provider is currently updating a server setting
+			if (settingsProvider.isUpdatingServerSetting) {
+				console.log('[Extension] Skipping configuration change event because settings provider is updating a server setting');
+				return;
+			}
+
 			if (e.affectsConfiguration('localSnapshots.enableApiServer') ||
 				e.affectsConfiguration('localSnapshots.apiPort')) {
+				console.log('[Extension] API server settings changed, updating server...');
 				updateApiServer();
 			}
 			if (e.affectsConfiguration('localSnapshots.enableMcpServer') ||
 				e.affectsConfiguration('localSnapshots.mcpPort')) {
+				console.log('[Extension] MCP server settings changed, updating server...');
 				updateMcpServer();
 			}
 		})
@@ -246,13 +310,10 @@ export function activate(context: vscode.ExtensionContext) {
 		() => webviewProvider.refreshList()
 	);
 
-	// Register the settings command
+	// Register the settings command with custom settings page
 	context.subscriptions.push(
 		vscode.commands.registerCommand('local-snapshots.openSettings', () => {
-			vscode.commands.executeCommand(
-				'workbench.action.openSettings',
-				'@ext:Pimzino.local-snapshots'
-			);
+			settingsProvider.show();
 		})
 	);
 

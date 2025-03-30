@@ -1,4 +1,4 @@
-import * as express from 'express';
+import express from 'express';
 import { Express, Request, Response } from 'express';
 import * as vscode from 'vscode';
 import { SnapshotManager } from '../managers/SnapshotManager';
@@ -8,8 +8,17 @@ export class ApiServer {
     private server: any;
 
     constructor(private snapshotManager: SnapshotManager) {
-        this.app = express.default();
-        
+        console.log('[API] Initializing API server');
+        console.log('[API] Express module:', typeof express);
+
+        if (!express) {
+            console.error('[API] Express module not properly loaded!');
+            throw new Error('Express module not properly loaded. This is likely a dependency issue.');
+        }
+
+        this.app = express();
+        console.log('[API] Express app created successfully');
+
         // Add error handling middleware
         this.app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
             console.error('API Error:', err);
@@ -27,7 +36,7 @@ export class ApiServer {
                 try {
                     JSON.parse(buf.toString());
                 } catch (e) {
-                    res.status(400).json({ 
+                    res.status(400).json({
                         error: 'Invalid JSON',
                         details: e instanceof Error ? e.message : 'Could not parse request body'
                     });
@@ -44,30 +53,30 @@ export class ApiServer {
         this.app.post('/snapshot', async (req: Request, res: Response) => {
             try {
                 const { name } = req.body;
-                
+
                 // Validate request body
                 if (!req.is('application/json')) {
-                    return res.status(400).json({ 
+                    return res.status(400).json({
                         error: 'Invalid Content-Type',
                         details: 'Request must be application/json'
                     });
                 }
 
                 if (!name || typeof name !== 'string' || name.trim().length === 0) {
-                    return res.status(400).json({ 
+                    return res.status(400).json({
                         error: 'Invalid snapshot name',
                         details: 'Snapshot name must be a non-empty string'
                     });
                 }
 
                 await this.snapshotManager.takeSnapshot(name.trim());
-                res.json({ 
-                    success: true, 
-                    message: `Snapshot '${name}' created successfully` 
+                res.json({
+                    success: true,
+                    message: `Snapshot '${name}' created successfully`
                 });
             } catch (error) {
                 console.error('Snapshot creation error:', error);
-                res.status(500).json({ 
+                res.status(500).json({
                     error: 'Failed to create snapshot',
                     details: error instanceof Error ? error.message : 'Unknown error'
                 });
@@ -84,7 +93,7 @@ export class ApiServer {
                 });
             } catch (error) {
                 console.error('Get snapshots error:', error);
-                res.status(500).json({ 
+                res.status(500).json({
                     error: 'Failed to get snapshots',
                     details: error instanceof Error ? error.message : 'Unknown error'
                 });
@@ -98,7 +107,7 @@ export class ApiServer {
 
         // Handle 404s
         this.app.use((_req: Request, res: Response) => {
-            res.status(404).json({ 
+            res.status(404).json({
                 error: 'Not Found',
                 details: 'The requested endpoint does not exist'
             });
@@ -106,18 +115,32 @@ export class ApiServer {
     }
 
     public async start(port: number = 45678): Promise<void> {
+        console.log(`[API] Attempting to start API server on port ${port}`);
         return new Promise((resolve, reject) => {
             try {
+                // Log the express app configuration
+                console.log(`[API] Express app created with ${Object.keys(this.app).length} properties`);
+                console.log(`[API] Middleware count: ${(this.app as any)._router?.stack?.length || 'unknown'}`);
+
+                // Create the server
+                console.log(`[API] Creating HTTP server for port ${port}`);
                 this.server = this.app.listen(port, () => {
-                    console.log(`API server started on port ${port}`);
+                    console.log(`[API] Server successfully started on port ${port}`);
                     vscode.window.showInformationMessage(
                         `Local Snapshots API server running on port ${port}`
                     );
                     resolve();
                 });
 
+                // Set up error handling
                 this.server.on('error', (error: any) => {
-                    console.error('Server error:', error);
+                    const errorDetails = {
+                        code: error.code,
+                        message: error.message,
+                        stack: error.stack
+                    };
+                    console.error('[API] Server error:', JSON.stringify(errorDetails, null, 2));
+
                     if (error.code === 'EADDRINUSE') {
                         reject(new Error(`Port ${port} is already in use. Please choose a different port in settings.`));
                     } else {
@@ -125,7 +148,10 @@ export class ApiServer {
                     }
                 });
             } catch (error) {
-                console.error('Server start error:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+                console.error(`[API] Server start error: ${errorMessage}`);
+                console.error(`[API] Error stack: ${errorStack}`);
                 reject(error);
             }
         });
@@ -138,4 +164,4 @@ export class ApiServer {
             console.log('API server stopped');
         }
     }
-} 
+}

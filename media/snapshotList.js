@@ -2,6 +2,7 @@ const vscode = acquireVsCodeApi();
 const snapshotList = document.getElementById('snapshot-list');
 const snapshotTemplate = document.getElementById('snapshot-template');
 
+
 // Filter elements
 const filterToggle = document.querySelector('.filter-toggle');
 const filterPanel = document.querySelector('.filter-panel');
@@ -54,7 +55,7 @@ function applyFilters() {
   // Apply name filter
   const nameQuery = nameFilter.value.toLowerCase().trim();
   if (nameQuery) {
-    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+    filteredSnapshots = filteredSnapshots.filter(snapshot =>
       snapshot.name.toLowerCase().includes(nameQuery)
     );
   }
@@ -62,13 +63,13 @@ function applyFilters() {
   // Apply date range filter
   if (dateFrom.value) {
     const fromDate = new Date(dateFrom.value).getTime();
-    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+    filteredSnapshots = filteredSnapshots.filter(snapshot =>
       snapshot.timestamp >= fromDate
     );
   }
   if (dateTo.value) {
     const toDate = new Date(dateTo.value).getTime();
-    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+    filteredSnapshots = filteredSnapshots.filter(snapshot =>
       snapshot.timestamp <= toDate
     );
   }
@@ -77,12 +78,12 @@ function applyFilters() {
   const minFiles = parseInt(filesFrom.value);
   const maxFiles = parseInt(filesTo.value);
   if (!isNaN(minFiles)) {
-    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+    filteredSnapshots = filteredSnapshots.filter(snapshot =>
       snapshot.fileCount >= minFiles
     );
   }
   if (!isNaN(maxFiles)) {
-    filteredSnapshots = filteredSnapshots.filter(snapshot => 
+    filteredSnapshots = filteredSnapshots.filter(snapshot =>
       snapshot.fileCount <= maxFiles
     );
   }
@@ -143,7 +144,7 @@ function createSnapshotCard(snapshot) {
 
   // Add button event listeners
   card.querySelector('.restore-button').addEventListener('click', () => {
-    vscode.postMessage({ 
+    vscode.postMessage({
       type: 'restoreSnapshot',
       name: snapshot.name,
       timestamp: snapshot.timestamp
@@ -151,7 +152,7 @@ function createSnapshotCard(snapshot) {
   });
 
   card.querySelector('.diff-button').addEventListener('click', () => {
-    vscode.postMessage({ 
+    vscode.postMessage({
       type: 'showDiff',
       name: snapshot.name,
       timestamp: snapshot.timestamp
@@ -159,7 +160,7 @@ function createSnapshotCard(snapshot) {
   });
 
   card.querySelector('.tree-button').addEventListener('click', () => {
-    vscode.postMessage({ 
+    vscode.postMessage({
         type: 'showTree',
         name: snapshot.name,
         timestamp: snapshot.timestamp
@@ -167,7 +168,7 @@ function createSnapshotCard(snapshot) {
   });
 
   card.querySelector('.rename-button').addEventListener('click', () => {
-    vscode.postMessage({ 
+    vscode.postMessage({
       type: 'renameSnapshot',
       name: snapshot.name,
       timestamp: snapshot.timestamp
@@ -175,7 +176,7 @@ function createSnapshotCard(snapshot) {
   });
 
   card.querySelector('.delete-button').addEventListener('click', () => {
-    vscode.postMessage({ 
+    vscode.postMessage({
       type: 'deleteSnapshot',
       name: snapshot.name,
       timestamp: snapshot.timestamp
@@ -199,4 +200,4 @@ function debounce(func, wait) {
 }
 
 // Initial refresh request
-vscode.postMessage({ type: 'refresh' }); 
+vscode.postMessage({ type: 'refresh' });

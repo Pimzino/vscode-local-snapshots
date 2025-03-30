@@ -1,6 +1,6 @@
 // MCP Server implementation
 import * as vscode from 'vscode';
-import * as express from 'express';
+import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { SnapshotManager } from '../managers/SnapshotManager';
 import { handleToolCall } from './mcpTools';
@@ -21,7 +21,16 @@ export class MCPServer {
     private port: number;
 
     constructor(private snapshotManager: SnapshotManager) {
-        this.app = express.default();
+        console.log('[MCP] Initializing MCP server');
+        console.log('[MCP] Express module:', typeof express);
+
+        if (!express) {
+            console.error('[MCP] Express module not properly loaded!');
+            throw new Error('Express module not properly loaded. This is likely a dependency issue.');
+        }
+
+        this.app = express();
+        console.log('[MCP] Express app created successfully');
         this.port = 45679; // Default port, will be overridden by settings
 
         // Add CORS middleware
@@ -322,19 +331,35 @@ export class MCPServer {
      */
     public async start(port: number = 45679): Promise<void> {
         this.port = port;
+        console.log(`[MCP] Attempting to start MCP server on port ${port}`);
 
         return new Promise((resolve, reject) => {
             try {
+                // Log the express app configuration
+                console.log(`[MCP] Express app created with ${Object.keys(this.app).length} properties`);
+                console.log(`[MCP] Middleware count: ${(this.app as any)._router?.stack?.length || 'unknown'}`);
+                console.log(`[MCP] Active sessions: ${this.sessions.size}`);
+
+                // Create the server
+                console.log(`[MCP] Creating HTTP server for port ${port}`);
                 this.server = this.app.listen(port, () => {
-                    console.log(`[MCP] Server started on port ${port}`);
+                    console.log(`[MCP] Server successfully started on port ${port}`);
+                    console.log(`[MCP] Server object:`, this.server ? 'Created successfully' : 'Failed to create');
                     vscode.window.showInformationMessage(
                         `Local Snapshots MCP server running on port ${port}`
                     );
                     resolve();
                 });
 
+                // Set up error handling
                 this.server.on('error', (error: any) => {
-                    console.error('[MCP] Server error:', error);
+                    const errorDetails = {
+                        code: error.code,
+                        message: error.message,
+                        stack: error.stack
+                    };
+                    console.error('[MCP] Server error:', JSON.stringify(errorDetails, null, 2));
+
                     if (error.code === 'EADDRINUSE') {
                         reject(new Error(`Port ${port} is already in use. Please choose a different port in settings.`));
                     } else {
@@ -342,7 +367,10 @@ export class MCPServer {
                     }
                 });
             } catch (error) {
-                console.error('[MCP] Server start error:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+                console.error(`[MCP] Server start error: ${errorMessage}`);
+                console.error(`[MCP] Error stack: ${errorStack}`);
                 reject(error);
             }
         });
@@ -364,7 +392,7 @@ export class MCPServer {
 async function main() {
     try {
         // Create and start the server
-        const app = express.default();
+        const app = express();
         const server = app.listen(45679, () => {
             console.log(`MCP server running on port 45679`);
         });

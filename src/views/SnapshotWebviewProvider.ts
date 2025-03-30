@@ -82,6 +82,9 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 				case 'refresh':
 					await this.refreshList();
 					break;
+				case 'openSettings':
+					await vscode.commands.executeCommand('local-snapshots.openSettings');
+					break;
 			}
 		});
 
@@ -140,6 +143,7 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
     </head>
     <body>
         <div class="container">
+
             <div class="filter-section">
                 <div class="filter-header">
                     <button class="filter-toggle" title="Toggle Filters">

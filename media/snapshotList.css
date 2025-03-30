@@ -287,12 +287,12 @@ body {
   .snapshot-actions {
     gap: var(--spacing-sm);
   }
-  
+
   .action-button-round {
     width: 28px;
     height: 28px;
   }
-  
+
   .action-button-round .codicon {
     font-size: 14px;
   }
@@ -337,16 +337,16 @@ body {
   .snapshot-list {
     grid-template-columns: 1fr;
   }
-  
+
   .date-range,
   .file-count-range {
     grid-template-columns: 1fr;
   }
-  
+
   .date-separator {
     display: none;
   }
-  
+
   .filter-input-container {
     margin-bottom: var(--spacing-xs);
   }
