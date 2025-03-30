@@ -6,6 +6,7 @@ import { SnapshotManager } from '../managers/SnapshotManager';
 import { handleToolCall } from './mcpTools';
 import { MCPInitResponse, MCPServerInfo, MCPCapabilities } from './types';
 import { execSync } from 'child_process';
+import { findAvailablePort, DEFAULT_PORTS } from '../utils/portUtils';
 
 // Express types
 type Request = express.Request;
@@ -31,7 +32,7 @@ export class MCPServer {
 
         this.app = express();
         console.log('[MCP] Express app created successfully');
-        this.port = 45679; // Default port, will be overridden by settings
+        this.port = DEFAULT_PORTS.MCP; // Default port
 
         // Add CORS middleware
         this.app.use((req, res, next) => {
@@ -326,12 +327,40 @@ export class MCPServer {
     }
 
     /**
-     * Start the MCP server
-     * @param port The port to listen on
+     * Get the current port the server is running on
+     * @returns The current port or undefined if the server is not running
      */
-    public async start(port: number = 45679): Promise<void> {
+    public getPort(): number | undefined {
+        return this.port;
+    }
+
+    /**
+     * Start the MCP server on an available port
+     * @returns Promise that resolves to the port the server is running on
+     */
+    public async start(): Promise<number> {
+        console.log(`[MCP] Attempting to start MCP server`);
+
+        try {
+            // Find an available port, starting with the default
+            const port = await findAvailablePort(DEFAULT_PORTS.MCP);
+            console.log(`[MCP] Found available port: ${port}`);
+
+            // Start the server on the available port
+            return await this.startOnPort(port);
+        } catch (error) {
+            console.error(`[MCP] Failed to start server:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Start the server on a specific port
+     * @param port The port to start the server on
+     * @returns Promise that resolves to the port the server is running on
+     */
+    private async startOnPort(port: number): Promise<number> {
         this.port = port;
-        console.log(`[MCP] Attempting to start MCP server on port ${port}`);
 
         return new Promise((resolve, reject) => {
             try {
@@ -345,10 +374,20 @@ export class MCPServer {
                 this.server = this.app.listen(port, () => {
                     console.log(`[MCP] Server successfully started on port ${port}`);
                     console.log(`[MCP] Server object:`, this.server ? 'Created successfully' : 'Failed to create');
-                    vscode.window.showInformationMessage(
-                        `Local Snapshots MCP server running on port ${port}`
-                    );
-                    resolve();
+
+                    // Show a notification to the user
+                    if (port !== DEFAULT_PORTS.MCP) {
+                        vscode.window.showInformationMessage(
+                            `MCP server running on port ${port} (default port ${DEFAULT_PORTS.MCP} was in use)`
+                        );
+                    } else {
+                        vscode.window.showInformationMessage(
+                            `MCP server running on port ${port}`
+                        );
+                    }
+
+                    // Resolve with the port
+                    resolve(port);
                 });
 
                 // Set up error handling
@@ -359,12 +398,7 @@ export class MCPServer {
                         stack: error.stack
                     };
                     console.error('[MCP] Server error:', JSON.stringify(errorDetails, null, 2));
-
-                    if (error.code === 'EADDRINUSE') {
-                        reject(new Error(`Port ${port} is already in use. Please choose a different port in settings.`));
-                    } else {
-                        reject(error);
-                    }
+                    reject(error);
                 });
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';

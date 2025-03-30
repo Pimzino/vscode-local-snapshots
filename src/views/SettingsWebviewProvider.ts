@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ApiServer } from '../api/server';
 import { MCPServer } from '../mcp/server';
 import { SnapshotManager } from '../managers/SnapshotManager';
+import { DEFAULT_PORTS } from '../utils/portUtils';
 
 // Define types for status bar update functions
 type StatusBarUpdateFunction = (isEnabled: boolean, port?: number) => void;
@@ -44,41 +45,63 @@ export class SettingsWebviewProvider {
         // Initialize API server if enabled
         if (apiEnabled) {
             try {
-                const port = config.get<number>('apiPort', 45678);
-                console.log(`[SettingsProvider] Initializing API server on port ${port}`);
+                console.log(`[SettingsProvider] Initializing API server`);
+                // Send initial status update - server is starting
+                await this.sendApiServerStatusUpdate(true);
+
                 this.apiServer = new ApiServer(this.snapshotManager);
-                await this.apiServer.start(port);
-                this.updateApiStatusBar(true, port);
-                console.log(`[SettingsProvider] API server initialized successfully`);
+                const actualPort = await this.apiServer.start();
+                this.updateApiStatusBar(true, actualPort);
+                console.log(`[SettingsProvider] API server initialized successfully on port ${actualPort}`);
+
+                // Send status update with the actual port
+                await this.sendApiServerStatusUpdate(true, actualPort);
             } catch (error) {
                 console.error(`[SettingsProvider] Failed to initialize API server:`, error);
                 // Update the setting to false if server failed to start
                 await config.update('enableApiServer', false, vscode.ConfigurationTarget.Global);
                 this.updateApiStatusBar(false);
+
+                // Send status update - server failed to start
+                await this.sendApiServerStatusUpdate(false);
             }
         } else {
             // Update status bar to show server is disabled
             this.updateApiStatusBar(false);
+
+            // Send status update - server is disabled
+            await this.sendApiServerStatusUpdate(false);
         }
 
         // Initialize MCP server if enabled
         if (mcpEnabled) {
             try {
-                const port = config.get<number>('mcpPort', 45679);
-                console.log(`[SettingsProvider] Initializing MCP server on port ${port}`);
+                console.log(`[SettingsProvider] Initializing MCP server`);
+                // Send initial status update - server is starting
+                await this.sendMcpServerStatusUpdate(true);
+
                 this.mcpServer = new MCPServer(this.snapshotManager);
-                await this.mcpServer.start(port);
-                this.updateMcpStatusBar(true, port);
-                console.log(`[SettingsProvider] MCP server initialized successfully`);
+                const actualPort = await this.mcpServer.start();
+                this.updateMcpStatusBar(true, actualPort);
+                console.log(`[SettingsProvider] MCP server initialized successfully on port ${actualPort}`);
+
+                // Send status update with the actual port
+                await this.sendMcpServerStatusUpdate(true, actualPort);
             } catch (error) {
                 console.error(`[SettingsProvider] Failed to initialize MCP server:`, error);
                 // Update the setting to false if server failed to start
                 await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
                 this.updateMcpStatusBar(false);
+
+                // Send status update - server failed to start
+                await this.sendMcpServerStatusUpdate(false);
             }
         } else {
             // Update status bar to show server is disabled
             this.updateMcpStatusBar(false);
+
+            // Send status update - server is disabled
+            await this.sendMcpServerStatusUpdate(false);
         }
     }
 
@@ -131,6 +154,42 @@ export class SettingsWebviewProvider {
         await this.sendSettingsToWebview();
     }
 
+    /**
+     * Send API server status update to the webview
+     * @param isRunning Whether the server is running
+     * @param port The port the server is running on (if running)
+     */
+    private async sendApiServerStatusUpdate(isRunning: boolean, port?: number) {
+        if (!this.panel) {
+            return;
+        }
+
+        await this.panel.webview.postMessage({
+            command: 'serverStatusUpdate',
+            serverType: 'api',
+            isRunning,
+            port
+        });
+    }
+
+    /**
+     * Send MCP server status update to the webview
+     * @param isRunning Whether the server is running
+     * @param port The port the server is running on (if running)
+     */
+    private async sendMcpServerStatusUpdate(isRunning: boolean, port?: number) {
+        if (!this.panel) {
+            return;
+        }
+
+        await this.panel.webview.postMessage({
+            command: 'serverStatusUpdate',
+            serverType: 'mcp',
+            isRunning,
+            port
+        });
+    }
+
     private async sendSettingsToWebview() {
         if (!this.panel) {
             return;
@@ -148,10 +207,16 @@ export class SettingsWebviewProvider {
             };
         }
 
+        // Get the actual ports being used from the server instances
+        const apiSessionPort = this.apiServer?.getPort();
+        const mcpSessionPort = this.mcpServer?.getPort();
+
         // Send settings to webview
         await this.panel.webview.postMessage({
             command: 'settingsLoaded',
-            settingsData
+            settingsData,
+            apiSessionPort,
+            mcpSessionPort
         });
     }
 
@@ -173,9 +238,6 @@ export class SettingsWebviewProvider {
                     this.isUpdatingServerSetting = true;
 
                     try {
-                        // Get the port
-                        const port = config.get<number>('apiPort', 45678);
-
                         // Stop existing server if it's running
                         if (this.apiServer) {
                             console.log('[SettingsProvider] Stopping existing API server');
@@ -183,19 +245,25 @@ export class SettingsWebviewProvider {
                             this.apiServer = undefined;
                         }
 
+                        // Send initial status update - server is starting
+                        await this.sendApiServerStatusUpdate(true);
+
                         // Create and start the server
-                        console.log(`[SettingsProvider] Creating new API server on port ${port}`);
+                        console.log(`[SettingsProvider] Creating new API server`);
                         this.apiServer = new ApiServer(this.snapshotManager);
-                        await this.apiServer.start(port);
+                        const actualPort = await this.apiServer.start();
 
                         // Update the setting
                         await config.update(key, true, target);
 
                         // Server started successfully
-                        console.log(`[SettingsProvider] API server started successfully`);
+                        console.log(`[SettingsProvider] API server started successfully on port ${actualPort}`);
 
                         // Update status bar
-                        this.updateApiStatusBar(true, port);
+                        this.updateApiStatusBar(true, actualPort);
+
+                        // Send status update with the actual port
+                        await this.sendApiServerStatusUpdate(true, actualPort);
 
                         if (this.panel) {
                             await this.panel.webview.postMessage({
@@ -243,6 +311,9 @@ export class SettingsWebviewProvider {
                     // Update status bar
                     this.updateApiStatusBar(false);
 
+                    // Send status update - server is disabled
+                    await this.sendApiServerStatusUpdate(false);
+
                     // Send success message to webview
                     if (this.panel) {
                         await this.panel.webview.postMessage({
@@ -264,9 +335,6 @@ export class SettingsWebviewProvider {
                     this.isUpdatingServerSetting = true;
 
                     try {
-                        // Get the port
-                        const port = config.get<number>('mcpPort', 45679);
-
                         // Stop existing server if it's running
                         if (this.mcpServer) {
                             console.log('[SettingsProvider] Stopping existing MCP server');
@@ -274,19 +342,25 @@ export class SettingsWebviewProvider {
                             this.mcpServer = undefined;
                         }
 
+                        // Send initial status update - server is starting
+                        await this.sendMcpServerStatusUpdate(true);
+
                         // Create and start the server
-                        console.log(`[SettingsProvider] Creating new MCP server on port ${port}`);
+                        console.log(`[SettingsProvider] Creating new MCP server`);
                         this.mcpServer = new MCPServer(this.snapshotManager);
-                        await this.mcpServer.start(port);
+                        const actualPort = await this.mcpServer.start();
 
                         // Update the setting
                         await config.update(key, true, target);
 
                         // Server started successfully
-                        console.log(`[SettingsProvider] MCP server started successfully`);
+                        console.log(`[SettingsProvider] MCP server started successfully on port ${actualPort}`);
 
                         // Update status bar
-                        this.updateMcpStatusBar(true, port);
+                        this.updateMcpStatusBar(true, actualPort);
+
+                        // Send status update with the actual port
+                        await this.sendMcpServerStatusUpdate(true, actualPort);
 
                         if (this.panel) {
                             await this.panel.webview.postMessage({
@@ -333,6 +407,9 @@ export class SettingsWebviewProvider {
 
                     // Update status bar
                     this.updateMcpStatusBar(false);
+
+                    // Send status update - server is disabled
+                    await this.sendMcpServerStatusUpdate(false);
 
                     // Send success message to webview
                     if (this.panel) {
@@ -499,28 +576,12 @@ export class SettingsWebviewProvider {
                 description: 'Enable the REST API server',
                 category: 'API Server'
             },
-            'apiPort': {
-                type: 'number',
-                default: 45678,
-                minimum: 1024,
-                maximum: 65535,
-                description: 'Port number for the REST API server (configure before enabling the server)',
-                category: 'API Server'
-            },
 
             // MCP Server Settings
             'enableMcpServer': {
                 type: 'boolean',
                 default: false,
                 description: 'Enable the MCP SSE server',
-                category: 'MCP Server'
-            },
-            'mcpPort': {
-                type: 'number',
-                default: 45679,
-                minimum: 1024,
-                maximum: 65535,
-                description: 'Port number for the MCP SSE server (configure before enabling the server)',
                 category: 'MCP Server'
             }
         };

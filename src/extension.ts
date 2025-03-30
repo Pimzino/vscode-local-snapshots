@@ -69,9 +69,8 @@ export function activate(context: vscode.ExtensionContext) {
 	async function updateApiServer() {
 		const config = vscode.workspace.getConfiguration('localSnapshots');
 		const isEnabled = config.get<boolean>('enableApiServer', false);
-		const port = config.get<number>('apiPort', 45678);
 
-		console.log(`[Extension] updateApiServer called - isEnabled: ${isEnabled}, port: ${port}`);
+		console.log(`[Extension] updateApiServer called - isEnabled: ${isEnabled}`);
 
 		// Skip if the settings provider is currently updating this setting
 		if (settingsProvider.isUpdatingServerSetting) {
@@ -86,8 +85,8 @@ export function activate(context: vscode.ExtensionContext) {
 			apiServer = undefined;
 		}
 
-		// Update status bar
-		updateApiStatusBar(isEnabled, isEnabled ? port : undefined);
+		// Update status bar initially
+		updateApiStatusBar(isEnabled, undefined);
 
 		// Start new server if enabled
 		if (isEnabled) {
@@ -97,9 +96,12 @@ export function activate(context: vscode.ExtensionContext) {
 				apiServer = new ApiServer(snapshotManager);
 
 				console.log('[Extension] Calling apiServer.start()');
-				await apiServer.start(port);
+				const actualPort = await apiServer.start();
 
-				console.log(`[Extension] API server successfully started on port ${port}`);
+				// Update status bar with actual port
+				updateApiStatusBar(true, actualPort);
+
+				console.log(`[Extension] API server successfully started on port ${actualPort}`);
 				console.log(`[Extension] API server object:`, apiServer ? 'Created successfully' : 'Failed to create');
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -107,29 +109,10 @@ export function activate(context: vscode.ExtensionContext) {
 				console.error('[Extension] Failed to start API server:', errorMessage);
 				console.error('[Extension] Error stack:', errorStack);
 
-				if (error instanceof Error && error.message.includes('EADDRINUSE')) {
-					const action = await vscode.window.showErrorMessage(
-						`Port ${port} is already in use. Would you like to configure a different port?`,
-						'Open Settings',
-						'Disable API'
-					);
-
-					if (action === 'Open Settings') {
-						await vscode.commands.executeCommand(
-							'workbench.action.openSettings',
-							'@ext:Pimzino.local-snapshots.apiPort'
-						);
-					} else {
-						// Disable the API server
-						console.log('[Extension] Disabling API server due to port conflict');
-						await config.update('enableApiServer', false, vscode.ConfigurationTarget.Global);
-					}
-				} else {
-					const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
-					vscode.window.showErrorMessage(`Failed to start API server: ${detailedError}`);
-					console.log('[Extension] Disabling API server due to startup error');
-					await config.update('enableApiServer', false, vscode.ConfigurationTarget.Global);
-				}
+				const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
+				vscode.window.showErrorMessage(`Failed to start API server: ${detailedError}`);
+				console.log('[Extension] Disabling API server due to startup error');
+				await config.update('enableApiServer', false, vscode.ConfigurationTarget.Global);
 			}
 		} else {
 			console.log('[Extension] API server is disabled');
@@ -140,9 +123,8 @@ export function activate(context: vscode.ExtensionContext) {
 	async function updateMcpServer() {
 		const config = vscode.workspace.getConfiguration('localSnapshots');
 		const isEnabled = config.get<boolean>('enableMcpServer', false);
-		const port = config.get<number>('mcpPort', 45679);
 
-		console.log(`[Extension] updateMcpServer called - isEnabled: ${isEnabled}, port: ${port}`);
+		console.log(`[Extension] updateMcpServer called - isEnabled: ${isEnabled}`);
 
 		// Skip if the settings provider is currently updating this setting
 		if (settingsProvider.isUpdatingServerSetting) {
@@ -157,8 +139,8 @@ export function activate(context: vscode.ExtensionContext) {
 			mcpServer = undefined;
 		}
 
-		// Update status bar
-		updateMcpStatusBar(isEnabled, isEnabled ? port : undefined);
+		// Update status bar initially
+		updateMcpStatusBar(isEnabled, undefined);
 
 		// Start new server if enabled
 		if (isEnabled) {
@@ -168,9 +150,12 @@ export function activate(context: vscode.ExtensionContext) {
 				mcpServer = new MCPServer(snapshotManager);
 
 				console.log('[Extension] Calling mcpServer.start()');
-				await mcpServer.start(port);
+				const actualPort = await mcpServer.start();
 
-				console.log(`[Extension] MCP server successfully started on port ${port}`);
+				// Update status bar with actual port
+				updateMcpStatusBar(true, actualPort);
+
+				console.log(`[Extension] MCP server successfully started on port ${actualPort}`);
 				console.log(`[Extension] MCP server object:`, mcpServer ? 'Created successfully' : 'Failed to create');
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -178,29 +163,10 @@ export function activate(context: vscode.ExtensionContext) {
 				console.error('[Extension] Failed to start MCP server:', errorMessage);
 				console.error('[Extension] Error stack:', errorStack);
 
-				if (error instanceof Error && error.message.includes('EADDRINUSE')) {
-					const action = await vscode.window.showErrorMessage(
-						`Port ${port} is already in use. Would you like to configure a different port?`,
-						'Open Settings',
-						'Disable MCP'
-					);
-
-					if (action === 'Open Settings') {
-						await vscode.commands.executeCommand(
-							'workbench.action.openSettings',
-							'@ext:Pimzino.local-snapshots.mcpPort'
-						);
-					} else {
-						// Disable the MCP server
-						console.log('[Extension] Disabling MCP server due to port conflict');
-						await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
-					}
-				} else {
-					const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
-					vscode.window.showErrorMessage(`Failed to start MCP server: ${detailedError}`);
-					console.log('[Extension] Disabling MCP server due to startup error');
-					await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
-				}
+				const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
+				vscode.window.showErrorMessage(`Failed to start MCP server: ${detailedError}`);
+				console.log('[Extension] Disabling MCP server due to startup error');
+				await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
 			}
 		} else {
 			console.log('[Extension] MCP server is disabled');

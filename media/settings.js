@@ -37,8 +37,38 @@
                 for (const [key, data] of Object.entries(settingsData)) {
                     settings[key] = data.value;
                 }
+
+                // Store session ports if provided
+                if (message.apiSessionPort) {
+                    window.apiSessionPort = message.apiSessionPort;
+                }
+                if (message.mcpSessionPort) {
+                    window.mcpSessionPort = message.mcpSessionPort;
+                }
+
                 renderSettings();
                 hideLoading();
+                break;
+
+            case 'serverStatusUpdate':
+                console.log(`Server status update received:`, message);
+
+                // Update the session port
+                if (message.serverType === 'api') {
+                    window.apiSessionPort = message.isRunning ? message.port : undefined;
+                    // Re-render the API server panel if it's currently visible
+                    const apiPanel = document.getElementById('API Server');
+                    if (apiPanel && apiPanel.style.display !== 'none') {
+                        renderServerInfoBox(apiPanel, 'api');
+                    }
+                } else if (message.serverType === 'mcp') {
+                    window.mcpSessionPort = message.isRunning ? message.port : undefined;
+                    // Re-render the MCP server panel if it's currently visible
+                    const mcpPanel = document.getElementById('MCP Server');
+                    if (mcpPanel && mcpPanel.style.display !== 'none') {
+                        renderServerInfoBox(mcpPanel, 'mcp');
+                    }
+                }
                 break;
 
             case 'settingUpdated':
@@ -175,44 +205,6 @@
             clearSearch();
             searchInput.focus();
         });
-
-        // Set up copy buttons (including dynamically added ones)
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.copy-button')) {
-                const button = e.target.closest('.copy-button');
-                const textToCopy = button.getAttribute('data-text');
-                if (textToCopy) {
-                    copyToClipboard(textToCopy, button);
-                }
-            }
-        });
-    }
-
-    /**
-     * Copy text to clipboard and show feedback
-     * @param {string} text - Text to copy
-     * @param {HTMLElement} button - The button that was clicked
-     */
-    function copyToClipboard(text, button) {
-        // Copy to clipboard
-        navigator.clipboard.writeText(text).then(() => {
-            // Show success feedback on the button
-            const originalIcon = button.innerHTML;
-            button.innerHTML = '<span class="codicon codicon-check"></span>';
-            button.classList.add('copied');
-
-            // Show notification
-            showNotification('Copied to clipboard', 'success');
-
-            // Reset button after a delay
-            setTimeout(() => {
-                button.innerHTML = originalIcon;
-                button.classList.remove('copied');
-            }, 2000);
-        }).catch(err => {
-            console.error('Failed to copy text: ', err);
-            showNotification('Failed to copy to clipboard', 'error');
-        });
     }
 
     /**
@@ -333,72 +325,103 @@
 
         // Add MCP server info box if we're in the MCP Server category and the server is enabled
         if (panel.id === 'MCP Server' && settings.enableMcpServer === true) {
-            const mcpPort = settings.mcpPort || 45679;
-            const infoBox = document.createElement('div');
-            infoBox.className = 'info-box';
-            infoBox.innerHTML = `
-                <div class="info-box-header">
-                    <span class="codicon codicon-info"></span>
-                    <span>MCP Server Information</span>
-                </div>
-                <div class="info-box-content">
-                    <p>The MCP (Model Context Protocol) SSE server is now running at:</p>
-                    <div class="code-block-container">
-                        <div class="code-block">http://localhost:${mcpPort}/sse</div>
-                        <button class="copy-button" data-text="http://localhost:${mcpPort}/sse" title="Copy to clipboard">
-                            <span class="codicon codicon-copy"></span>
-                        </button>
-                    </div>
-                    <p>To connect to this server from AI tools or applications:</p>
-                    <ol>
-                        <li>Use the URL above as the SSE endpoint</li>
-                        <li>The server provides snapshot functionality through the MCP protocol</li>
-                        <li>Available tools: <code>takeNamedSnapshot</code></li>
-                    </ol>
-                </div>
-            `;
-            panel.appendChild(infoBox);
+            renderServerInfoBox(panel, 'mcp');
         }
 
         // Add API server info box if we're in the API Server category and the server is enabled
         if (panel.id === 'API Server' && settings.enableApiServer === true) {
-            const apiPort = settings.apiPort || 45678;
+            renderServerInfoBox(panel, 'api');
+        }
+    }
+
+    /**
+     * Render a server info box
+     * @param {HTMLElement} panel - The panel to render the info box in
+     * @param {string} serverType - The type of server ('api' or 'mcp')
+     */
+    function renderServerInfoBox(panel, serverType) {
+        // Remove any existing info boxes
+        const existingInfoBoxes = panel.querySelectorAll('.info-box');
+        existingInfoBoxes.forEach(box => box.remove());
+
+        if (serverType === 'mcp') {
+            // Get the actual port being used
+            const sessionPort = window.mcpSessionPort;
+
             const infoBox = document.createElement('div');
             infoBox.className = 'info-box';
-            infoBox.innerHTML = `
-                <div class="info-box-header">
-                    <span class="codicon codicon-info"></span>
-                    <span>API Server Information</span>
-                </div>
-                <div class="info-box-content">
-                    <p>The REST API server is now running at:</p>
-                    <div class="code-block-container">
-                        <div class="code-block">http://localhost:${apiPort}</div>
-                        <button class="copy-button" data-text="http://localhost:${apiPort}" title="Copy to clipboard">
-                            <span class="codicon codicon-copy"></span>
-                        </button>
+
+            if (sessionPort) {
+                infoBox.innerHTML = `
+                    <div class="info-box-header">
+                        <span class="codicon codicon-info"></span>
+                        <span>MCP Server Information</span>
                     </div>
-                    <p>Available endpoints:</p>
-                    <ul>
-                        <li><code>POST /snapshot</code> - Create a new snapshot</li>
-                        <li><code>GET /snapshots</code> - List all snapshots</li>
-                    </ul>
-                    <p>Example usage with PowerShell:</p>
-                    <div class="code-block-container">
-                        <div class="code-block">Invoke-RestMethod -Method Post -Uri "http://localhost:${apiPort}/snapshot" -Body (@{name="My API Snapshot"} | ConvertTo-Json) -ContentType "application/json"</div>
-                        <button class="copy-button" data-text="Invoke-RestMethod -Method Post -Uri \"http://localhost:${apiPort}/snapshot\" -Body (@{name=\"My API Snapshot\"} | ConvertTo-Json) -ContentType \"application/json\"" title="Copy to clipboard">
-                            <span class="codicon codicon-copy"></span>
-                        </button>
+                    <div class="info-box-content">
+                        <p>The MCP (Model Context Protocol) SSE server is now running at:</p>
+                        <div class="code-block">http://localhost:${sessionPort}/sse</div>
+                        <p>To connect to this server from AI tools or applications:</p>
+                        <ol>
+                            <li>Use the URL above as the SSE endpoint</li>
+                            <li>The server provides snapshot functionality through the MCP protocol</li>
+                            <li>Available tools: <code>takeNamedSnapshot</code></li>
+                        </ol>
                     </div>
-                    <p>Example usage with curl:</p>
-                    <div class="code-block-container">
-                        <div class="code-block">curl -X POST http://localhost:${apiPort}/snapshot -H "Content-Type: application/json" -d "{\"name\":\"My API Snapshot\"}"</div>
-                        <button class="copy-button" data-text="curl -X POST http://localhost:${apiPort}/snapshot -H \"Content-Type: application/json\" -d \"{\\\"name\\\":\\\"My API Snapshot\\\"}\"" title="Copy to clipboard">
-                            <span class="codicon codicon-copy"></span>
-                        </button>
+                `;
+            } else {
+                infoBox.innerHTML = `
+                    <div class="info-box-header">
+                        <span class="codicon codicon-info"></span>
+                        <span>MCP Server Information</span>
                     </div>
-                </div>
-            `;
+                    <div class="info-box-content">
+                        <p>The MCP server is enabled but not currently running.</p>
+                        <p>The server will start automatically and use an available port.</p>
+                    </div>
+                `;
+            }
+
+            panel.appendChild(infoBox);
+        } else if (serverType === 'api') {
+            // Get the actual port being used
+            const sessionPort = window.apiSessionPort;
+
+            const infoBox = document.createElement('div');
+            infoBox.className = 'info-box';
+
+            if (sessionPort) {
+                infoBox.innerHTML = `
+                    <div class="info-box-header">
+                        <span class="codicon codicon-info"></span>
+                        <span>API Server Information</span>
+                    </div>
+                    <div class="info-box-content">
+                        <p>The REST API server is now running at:</p>
+                        <div class="code-block">http://localhost:${sessionPort}</div>
+                        <p>Available endpoints:</p>
+                        <ul>
+                            <li><code>POST /snapshot</code> - Create a new snapshot</li>
+                            <li><code>GET /snapshots</code> - List all snapshots</li>
+                        </ul>
+                        <p>Example usage with PowerShell:</p>
+                        <div class="code-block">Invoke-RestMethod -Method Post -Uri "http://localhost:${sessionPort}/snapshot" -Body (@{name="My API Snapshot"} | ConvertTo-Json) -ContentType "application/json"</div>
+                        <p>Example usage with curl:</p>
+                        <div class="code-block">curl -X POST http://localhost:${sessionPort}/snapshot -H "Content-Type: application/json" -d "{\"name\":\"My API Snapshot\"}"</div>
+                    </div>
+                `;
+            } else {
+                infoBox.innerHTML = `
+                    <div class="info-box-header">
+                        <span class="codicon codicon-info"></span>
+                        <span>API Server Information</span>
+                    </div>
+                    <div class="info-box-content">
+                        <p>The API server is enabled but not currently running.</p>
+                        <p>The server will start automatically and use an available port.</p>
+                    </div>
+                `;
+            }
+
             panel.appendChild(infoBox);
         }
     }

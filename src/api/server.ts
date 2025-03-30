@@ -2,10 +2,12 @@ import express from 'express';
 import { Express, Request, Response } from 'express';
 import * as vscode from 'vscode';
 import { SnapshotManager } from '../managers/SnapshotManager';
+import { findAvailablePort, DEFAULT_PORTS } from '../utils/portUtils';
 
 export class ApiServer {
     private app: Express;
     private server: any;
+    private port: number | undefined;
 
     constructor(private snapshotManager: SnapshotManager) {
         console.log('[API] Initializing API server');
@@ -114,8 +116,40 @@ export class ApiServer {
         });
     }
 
-    public async start(port: number = 45678): Promise<void> {
-        console.log(`[API] Attempting to start API server on port ${port}`);
+    /**
+     * Get the current port the server is running on
+     * @returns The current port or undefined if the server is not running
+     */
+    public getPort(): number | undefined {
+        return this.port;
+    }
+
+    /**
+     * Start the API server on an available port
+     * @returns Promise that resolves to the port the server is running on
+     */
+    public async start(): Promise<number> {
+        console.log(`[API] Attempting to start API server`);
+
+        try {
+            // Find an available port, starting with the default
+            const port = await findAvailablePort(DEFAULT_PORTS.API);
+            console.log(`[API] Found available port: ${port}`);
+
+            // Start the server on the available port
+            return await this.startOnPort(port);
+        } catch (error) {
+            console.error(`[API] Failed to start server:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Start the server on a specific port
+     * @param port The port to start the server on
+     * @returns Promise that resolves to the port the server is running on
+     */
+    private async startOnPort(port: number): Promise<number> {
         return new Promise((resolve, reject) => {
             try {
                 // Log the express app configuration
@@ -126,10 +160,23 @@ export class ApiServer {
                 console.log(`[API] Creating HTTP server for port ${port}`);
                 this.server = this.app.listen(port, () => {
                     console.log(`[API] Server successfully started on port ${port}`);
-                    vscode.window.showInformationMessage(
-                        `Local Snapshots API server running on port ${port}`
-                    );
-                    resolve();
+
+                    // Store the port
+                    this.port = port;
+
+                    // Show a notification to the user
+                    if (port !== DEFAULT_PORTS.API) {
+                        vscode.window.showInformationMessage(
+                            `API server running on port ${port} (default port ${DEFAULT_PORTS.API} was in use)`
+                        );
+                    } else {
+                        vscode.window.showInformationMessage(
+                            `API server running on port ${port}`
+                        );
+                    }
+
+                    // Resolve with the port
+                    resolve(port);
                 });
 
                 // Set up error handling
@@ -140,12 +187,7 @@ export class ApiServer {
                         stack: error.stack
                     };
                     console.error('[API] Server error:', JSON.stringify(errorDetails, null, 2));
-
-                    if (error.code === 'EADDRINUSE') {
-                        reject(new Error(`Port ${port} is already in use. Please choose a different port in settings.`));
-                    } else {
-                        reject(error);
-                    }
+                    reject(error);
                 });
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -157,11 +199,17 @@ export class ApiServer {
         });
     }
 
+    /**
+     * Stop the API server
+     */
     public stop() {
         if (this.server) {
             this.server.close();
             this.server = null;
-            console.log('API server stopped');
+            console.log('[API] Server stopped');
+
+            // Clear the port
+            this.port = undefined;
         }
     }
 }

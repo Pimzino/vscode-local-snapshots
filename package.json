@@ -142,26 +142,12 @@
         "localSnapshots.enableApiServer": {
           "type": "boolean",
           "default": false,
-          "description": "Enable the REST API server for programmatic snapshot creation. Configure the port before enabling."
-        },
-        "localSnapshots.apiPort": {
-          "type": "number",
-          "default": 45678,
-          "minimum": 1024,
-          "maximum": 65535,
-          "description": "Port number for the REST API server (configure before enabling the server). Choose an uncommon port to avoid conflicts."
+          "description": "Enable the REST API server for programmatic snapshot creation. The server will automatically use an available port."
         },
         "localSnapshots.enableMcpServer": {
           "type": "boolean",
           "default": false,
-          "description": "Enable the MCP (Model Context Protocol) SSE server for AI tool integration. Configure the port before enabling."
-        },
-        "localSnapshots.mcpPort": {
-          "type": "number",
-          "default": 45679,
-          "minimum": 1024,
-          "maximum": 65535,
-          "description": "Port number for the MCP SSE server (configure before enabling the server). Choose an uncommon port to avoid conflicts."
+          "description": "Enable the MCP (Model Context Protocol) SSE server for AI tool integration. The server will automatically use an available port."
         }
       }
     },

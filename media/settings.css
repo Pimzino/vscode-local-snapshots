@@ -559,58 +559,29 @@ body {
     font-size: 12px;
 }
 
-.code-block-container {
-    position: relative;
-    margin: var(--spacing-sm) 0;
-}
-
 .code-block {
     font-family: var(--vscode-editor-font-family);
     background-color: var(--vscode-input-background);
     padding: var(--spacing-sm) var(--spacing-md);
     border-radius: 4px;
+    margin: var(--spacing-sm) 0;
     overflow-x: auto;
     white-space: nowrap;
     font-size: 12px;
     border-left: 3px solid var(--vscode-textLink-foreground);
-    padding-right: 36px; /* Make room for the copy button */
 }
 
-.copy-button {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 28px;
-    height: 28px;
-    background-color: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+.port-notice {
     display: flex;
     align-items: center;
-    justify-content: center;
-    opacity: 0.7;
-    transition: all var(--transition-duration) ease;
-}
-
-.copy-button:hover {
-    opacity: 1;
-    background-color: var(--vscode-button-secondaryHoverBackground);
-}
-
-.copy-button:active {
-    transform: scale(0.95);
-}
-
-.copy-button .codicon {
-    font-size: 14px;
-}
-
-.copy-button.copied {
-    background-color: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    opacity: 1;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin: var(--spacing-sm) 0;
+    background-color: var(--vscode-editorWarning-background, rgba(255, 200, 0, 0.1));
+    color: var(--vscode-editorWarning-foreground, #ffa500);
+    border-radius: 4px;
+    font-size: 13px;
+    border-left: 3px solid var(--vscode-editorWarning-border, #ffa500);
 }
 
 /* Animations */
