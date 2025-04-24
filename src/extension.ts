@@ -7,6 +7,7 @@ import { SettingsWebviewProvider } from './views/SettingsWebviewProvider';
 import { ApiServer } from './api/server';
 import { MCPServer } from './mcp/server';
 import { registerMCPTools } from './mcp/mcpTools';
+import { NotificationManager } from './utils/NotificationManager';
 import path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -14,6 +15,18 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log('Local Snapshots extension is now active!');
 	console.log('==============================================');
 
+	// Initialize the notification manager and ensure it's properly set up
+	const notificationManager = NotificationManager.getInstance();
+
+	// Test notification to verify the notification system is working
+	setTimeout(async () => {
+		try {
+			console.log('[Extension] Sending test notification to verify notification system');
+			await notificationManager.showInformationMessage('Local Snapshots extension is ready', undefined, false);
+		} catch (error) {
+			console.error('[Extension] Error sending test notification:', error);
+		}
+	}, 3000);
 	const snapshotManager = new SnapshotManager(context);
 	let apiServer: ApiServer | undefined;
 	let mcpServer: MCPServer | undefined;
@@ -110,7 +123,7 @@ export function activate(context: vscode.ExtensionContext) {
 				console.error('[Extension] Error stack:', errorStack);
 
 				const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
-				vscode.window.showErrorMessage(`Failed to start API server: ${detailedError}`);
+				await notificationManager.showErrorMessage(`Failed to start API server: ${detailedError}`);
 				console.log('[Extension] Disabling API server due to startup error');
 				await config.update('enableApiServer', false, vscode.ConfigurationTarget.Global);
 			}
@@ -164,7 +177,7 @@ export function activate(context: vscode.ExtensionContext) {
 				console.error('[Extension] Error stack:', errorStack);
 
 				const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
-				vscode.window.showErrorMessage(`Failed to start MCP server: ${detailedError}`);
+				await notificationManager.showErrorMessage(`Failed to start MCP server: ${detailedError}`);
 				console.log('[Extension] Disabling MCP server due to startup error');
 				await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
 			}
@@ -235,13 +248,13 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 			if (name) {
 				await snapshotManager.takeSnapshot(name);
-				vscode.window.showInformationMessage(`Created snapshot: ${name}`);
+				await notificationManager.showInformationMessage(`Created snapshot: ${name}`);
 				webviewProvider.refreshList();
 			}
 		},
 		async (snapshotName: string, timestamp: number, selectedFiles?: string[]) => {
 			await snapshotManager.restoreSnapshot(snapshotName, timestamp, selectedFiles);
-			vscode.window.showInformationMessage(
+			await notificationManager.showInformationMessage(
 				`Restored ${selectedFiles ? selectedFiles.length : 'all'} files from snapshot: ${snapshotName}`
 			);
 		},
@@ -290,10 +303,10 @@ export function activate(context: vscode.ExtensionContext) {
 				const rulesPath = path.join(context.extensionPath, 'RULES.md');
 				const rules = await vscode.workspace.fs.readFile(vscode.Uri.file(rulesPath));
 				await vscode.env.clipboard.writeText(rules.toString());
-				vscode.window.showInformationMessage('AI Safety Rules copied to clipboard!');
+				await notificationManager.showInformationMessage('AI Safety Rules copied to clipboard!');
 			} catch (error) {
 				console.error('Failed to copy rules:', error);
-				vscode.window.showErrorMessage('Failed to copy AI Safety Rules to clipboard');
+				await notificationManager.showErrorMessage('Failed to copy AI Safety Rules to clipboard');
 			}
 		})
 	);

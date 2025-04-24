@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { SnapshotManager } from '../managers/SnapshotManager';
+import { NotificationManager } from '../utils/NotificationManager';
 
 export function registerSnapshotCommands(
 	context: vscode.ExtensionContext,
@@ -8,6 +9,7 @@ export function registerSnapshotCommands(
 	refreshWebview: () => void,
 	onSnapshotsChanged: () => void
 ): vscode.Disposable[] {
+	const notificationManager = NotificationManager.getInstance();
 	return [
 		vscode.commands.registerCommand('local-snapshots.takeSnapshot', async () => {
 			const name = await vscode.window.showInputBox({
@@ -15,14 +17,14 @@ export function registerSnapshotCommands(
 			});
 			if (name) {
 				await snapshotManager.takeSnapshot(name);
-				vscode.window.showInformationMessage(`Created snapshot: ${name}`);
+				await notificationManager.showInformationMessage(`Created snapshot: ${name}`);
 				refreshWebview();
 			}
 		}),
 
 		vscode.commands.registerCommand('local-snapshots.quickSnapshot', async () => {
 			await snapshotManager.takeSnapshot();
-			vscode.window.showInformationMessage('Quick snapshot created');
+			await notificationManager.showInformationMessage('Quick snapshot created');
 			refreshWebview();
 		}),
 
@@ -33,7 +35,7 @@ export function registerSnapshotCommands(
 				description: new Date(s.timestamp).toLocaleString(),
 				timestamp: s.timestamp
 			}));
-			
+
 			const selectedSnapshot = await vscode.window.showQuickPick(items, {
 				placeHolder: 'Select a snapshot to restore'
 			});
@@ -57,7 +59,7 @@ export function registerSnapshotCommands(
 
 			if (choice.value === 'all') {
 				await snapshotManager.restoreSnapshot(selectedSnapshot.label, selectedSnapshot.timestamp);
-				vscode.window.showInformationMessage(
+				await notificationManager.showInformationMessage(
 					`Restored all files from snapshot: ${selectedSnapshot.label}`
 				);
 			} else {
@@ -66,10 +68,10 @@ export function registerSnapshotCommands(
 					canPickMany: true,
 					placeHolder: 'Select files to restore'
 				});
-				
+
 				if (selectedFiles) {
 					await snapshotManager.restoreSnapshot(selectedSnapshot.label, selectedSnapshot.timestamp, selectedFiles);
-					vscode.window.showInformationMessage(
+					await notificationManager.showInformationMessage(
 						`Restored ${selectedFiles.length} files from snapshot: ${selectedSnapshot.label}`
 					);
 				}
@@ -83,7 +85,7 @@ export function registerSnapshotCommands(
 					onSnapshotsChanged();
 				}
 			} catch (error) {
-				vscode.window.showErrorMessage('Failed to delete snapshots: ' + (error instanceof Error ? error.message : 'Unknown error'));
+				await notificationManager.showErrorMessage('Failed to delete snapshots: ' + (error instanceof Error ? error.message : 'Unknown error'));
 			}
 		}),
 
@@ -103,9 +105,9 @@ export function registerSnapshotCommands(
 			if (newName) {
 				try {
 					await snapshotManager.renameSnapshot(snapshotName, timestamp, newName);
-					vscode.window.showInformationMessage(`Renamed snapshot to: ${newName}`);
+					await notificationManager.showInformationMessage(`Renamed snapshot to: ${newName}`);
 				} catch (error) {
-					vscode.window.showErrorMessage((error instanceof Error ? error.message : 'Failed to rename snapshot'));
+					await notificationManager.showErrorMessage((error instanceof Error ? error.message : 'Failed to rename snapshot'));
 				}
 			}
 		}),
@@ -114,16 +116,16 @@ export function registerSnapshotCommands(
 		vscode.commands.registerCommand('local-snapshots.addFileToIgnore', async (uri: vscode.Uri) => {
 			const workspaceFolders = vscode.workspace.workspaceFolders;
 			if (!workspaceFolders) {
-				vscode.window.showErrorMessage('No workspace folder is open');
+				await notificationManager.showErrorMessage('No workspace folder is open');
 				return;
 			}
 
-			const workspaceFolder = workspaceFolders.find(folder => 
+			const workspaceFolder = workspaceFolders.find(folder =>
 				uri.fsPath.startsWith(folder.uri.fsPath)
 			);
 
 			if (!workspaceFolder) {
-				vscode.window.showErrorMessage('File is not in the current workspace');
+				await notificationManager.showErrorMessage('File is not in the current workspace');
 				return;
 			}
 
@@ -134,7 +136,7 @@ export function registerSnapshotCommands(
 			const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
 
 			if (currentPatterns.includes(pattern)) {
-				vscode.window.showInformationMessage(`Pattern "${pattern}" is already in ignore list`);
+				await notificationManager.showInformationMessage(`Pattern "${pattern}" is already in ignore list`);
 				return;
 			}
 
@@ -144,23 +146,23 @@ export function registerSnapshotCommands(
 				vscode.ConfigurationTarget.Global
 			);
 
-			vscode.window.showInformationMessage(`Added "${pattern}" to ignore patterns`);
+			await notificationManager.showInformationMessage(`Added "${pattern}" to ignore patterns`);
 		}),
 
 		// Add directory to ignore patterns
 		vscode.commands.registerCommand('local-snapshots.addDirectoryToIgnore', async (uri: vscode.Uri) => {
 			const workspaceFolders = vscode.workspace.workspaceFolders;
 			if (!workspaceFolders) {
-				vscode.window.showErrorMessage('No workspace folder is open');
+				await notificationManager.showErrorMessage('No workspace folder is open');
 				return;
 			}
 
-			const workspaceFolder = workspaceFolders.find(folder => 
+			const workspaceFolder = workspaceFolders.find(folder =>
 				uri.fsPath.startsWith(folder.uri.fsPath)
 			);
 
 			if (!workspaceFolder) {
-				vscode.window.showErrorMessage('Directory is not in the current workspace');
+				await notificationManager.showErrorMessage('Directory is not in the current workspace');
 				return;
 			}
 
@@ -171,7 +173,7 @@ export function registerSnapshotCommands(
 			const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
 
 			if (currentPatterns.includes(pattern)) {
-				vscode.window.showInformationMessage(`Pattern "${pattern}" is already in ignore list`);
+				await notificationManager.showInformationMessage(`Pattern "${pattern}" is already in ignore list`);
 				return;
 			}
 
@@ -181,7 +183,7 @@ export function registerSnapshotCommands(
 				vscode.ConfigurationTarget.Global
 			);
 
-			vscode.window.showInformationMessage(`Added "${pattern}" to ignore patterns`);
+			await notificationManager.showInformationMessage(`Added "${pattern}" to ignore patterns`);
 		})
 	];
-} 
+}

@@ -4,6 +4,7 @@ import { FileSnapshot, Snapshot, DiffFile } from '../types/interfaces';
 import { SnapshotWebviewProvider } from '../views/SnapshotWebviewProvider';
 import { SnapshotDiffWebviewProvider } from '../views/SnapshotDiffWebviewProvider';
 import { SnapshotTreeWebviewProvider } from '../views/SnapshotTreeWebviewProvider';
+import { NotificationManager } from '../utils/NotificationManager';
 import ignore from 'ignore';
 
 // Constants for file processing
@@ -37,10 +38,13 @@ export class SnapshotManager {
     return vscode.workspace.getConfiguration('localSnapshots').get('maxParallelBatches', 1);
   }
 
+  private notificationManager: NotificationManager;
+
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
+    this.notificationManager = NotificationManager.getInstance();
     this.migrateSnapshots();
-    
+
     // Create status bar item
     this.statusBarItem = vscode.window.createStatusBarItem(
       vscode.StatusBarAlignment.Right,
@@ -57,17 +61,17 @@ export class SnapshotManager {
       vscode.commands.registerCommand('local-snapshots.snapshotFile', async (uri: vscode.Uri) => {
         try {
           await this.takeFileSnapshot(uri);
-          vscode.window.showInformationMessage(`Snapshot taken of file: ${path.basename(uri.fsPath)}`);
+          await this.notificationManager.showInformationMessage(`Snapshot taken of file: ${path.basename(uri.fsPath)}`);
         } catch (error) {
-          vscode.window.showErrorMessage(`Failed to take snapshot: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          await this.notificationManager.showErrorMessage(`Failed to take snapshot: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }),
       vscode.commands.registerCommand('local-snapshots.snapshotDirectory', async (uri: vscode.Uri) => {
         try {
           await this.takeDirectorySnapshot(uri);
-          vscode.window.showInformationMessage(`Snapshot taken of directory: ${path.basename(uri.fsPath)}`);
+          await this.notificationManager.showInformationMessage(`Snapshot taken of directory: ${path.basename(uri.fsPath)}`);
         } catch (error) {
-          vscode.window.showErrorMessage(`Failed to take snapshot: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          await this.notificationManager.showErrorMessage(`Failed to take snapshot: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       })
     );
@@ -82,11 +86,10 @@ export class SnapshotManager {
       if (e.affectsConfiguration('localSnapshots.limitSnapshotCount')) {
         const isLimitEnabled = this.isSnapshotLimitEnabled();
         if (isLimitEnabled) {
-        const result = await vscode.window.showWarningMessage(
+        const result = await this.notificationManager.showWarningMessage(
           'Enabling snapshot limit will automatically delete older snapshots when the limit is reached. Are you sure you want to continue?',
-          { modal: true },
-          'Yes',
-          'No'
+          ['Yes', 'No'],
+          true // modal
         );
         if (result === 'Yes') {
           await this.enforceSnapshotLimit();
@@ -113,11 +116,11 @@ export class SnapshotManager {
       async (filePath: string) => {
       // Get the current snapshot being viewed
       const snapshots = this.getSnapshots();
-      const snapshot = snapshots.find(s => 
-        s.name === this.diffProvider?.snapshotName && 
+      const snapshot = snapshots.find(s =>
+        s.name === this.diffProvider?.snapshotName &&
         s.timestamp === this.diffProvider?.timestamp
       );
-      
+
       if (snapshot) {
         const fileToRestore = snapshot.files.find(f => f.relativePath === filePath);
         if (fileToRestore) {
@@ -131,11 +134,11 @@ export class SnapshotManager {
       context.extensionUri,
       async (filePath: string) => {
         const snapshots = this.getSnapshots();
-        const snapshot = snapshots.find(s => 
-        s.name === this.treeProvider?.currentSnapshotName && 
+        const snapshot = snapshots.find(s =>
+        s.name === this.treeProvider?.currentSnapshotName &&
         s.timestamp === this.treeProvider?.currentTimestamp
         );
-      
+
       if (snapshot) {
         const fileToRestore = snapshot.files.find(f => f.relativePath === filePath);
         if (fileToRestore) {
@@ -206,7 +209,7 @@ export class SnapshotManager {
 
       // Group snapshots by workspace folder
       const workspaceSnapshots = new Map<string, Snapshot[]>();
-      
+
       for (const snapshot of existingSnapshots) {
         // Try to determine which workspace the snapshot belongs to
         let workspaceFolder: string | undefined;
@@ -253,7 +256,7 @@ export class SnapshotManager {
           const firstFilePath = snapshot.files[0].relativePath;
           // Split the path and try to match the top-level directory
           const topLevelDir = firstFilePath.split(path.sep)[0];
-          
+
           for (const folder of workspaceFolders) {
             const folderName = path.basename(folder.uri.fsPath);
             if (folderName === topLevelDir) {
@@ -289,7 +292,7 @@ export class SnapshotManager {
 
       // Clear the old global snapshots
       await this.context.globalState.update(this.SNAPSHOTS_KEY, undefined);
-      
+
       // Mark migration as complete
       await this.context.globalState.update(this.MIGRATION_DONE_KEY, true);
 
@@ -376,7 +379,7 @@ export class SnapshotManager {
 
         for (let i = 0; i < uris.length; i += this.getBatchSize()) {
             const batch = uris.slice(i, i + this.getBatchSize());
-            
+
             for (const uri of batch) {
                 try {
                     const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
@@ -461,9 +464,9 @@ export class SnapshotManager {
             // Update next snapshot time without creating a snapshot
             nextSnapshot = Date.now() + (intervalSeconds * 1000);
             this.updateStatusBar(nextSnapshot);
-            
+
             if (this.shouldShowTimedSnapshotNotifications()) {
-              vscode.window.showInformationMessage('Skipped timed snapshot - no changes detected');
+              await this.notificationManager.showInformationMessage('Skipped timed snapshot - no changes detected');
             }
             return;
           }
@@ -471,11 +474,10 @@ export class SnapshotManager {
 
         const timestamp = this.formatTimestamp();
         await this.takeSnapshot(`Timed Snapshot - ${timestamp}`);
-        
+
         if (this.shouldShowTimedSnapshotNotifications()) {
-          vscode.window.showInformationMessage(
-            `Created timed snapshot at ${timestamp}`,
-            { modal: false }
+          await this.notificationManager.showInformationMessage(
+            `Created timed snapshot at ${timestamp}`
           );
         }
 
@@ -487,7 +489,7 @@ export class SnapshotManager {
         this.webviewProvider?.refreshList();
       } catch (error) {
         console.error('Failed to create timed snapshot:', error);
-        vscode.window.showErrorMessage('Failed to create timed snapshot');
+        await this.notificationManager.showErrorMessage('Failed to create timed snapshot');
       }
     }, intervalSeconds * 1000);
 
@@ -509,7 +511,7 @@ export class SnapshotManager {
     const hours = Math.floor(timeLeft / 3600000);
     const minutes = Math.floor((timeLeft % 3600000) / 60000);
     const seconds = Math.floor((timeLeft % 60000) / 1000);
-    
+
     const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     this.statusBarItem.text = `$(history) Next snapshot in ${timeString}`;
     this.statusBarItem.tooltip = 'Click to open Local Snapshots settings';
@@ -713,10 +715,10 @@ export class SnapshotManager {
       : `Are you sure you want to delete snapshot "${snapshotName}"? This action cannot be undone.`;
 
     const items = ['Yes', 'No', "Yes, don't ask again"];
-    const selection = await vscode.window.showInformationMessage(
+    const selection = await this.notificationManager.showInformationMessage(
       message,
-      { modal: true },
-      ...items
+      items,
+      true // modal
     );
 
     if (selection === "Yes, don't ask again") {
@@ -749,11 +751,10 @@ export class SnapshotManager {
 
     if (snapshots.length > maxCount) {
         const deletedCount = snapshots.length - maxCount;
-        const result = await vscode.window.showWarningMessage(
+        const result = await this.notificationManager.showWarningMessage(
             `Enforcing snapshot limit will delete ${deletedCount} older snapshot(s). Do you want to continue?`,
-            { modal: true },
-            'Yes',
-            'No'
+            ['Yes', 'No'],
+            true // modal
         );
 
         if (result === 'Yes') {
@@ -762,11 +763,11 @@ export class SnapshotManager {
             // Keep only the newest maxCount snapshots
             const updatedSnapshots = sortedSnapshots.slice(0, maxCount);
             await this.saveSnapshots(updatedSnapshots);
-            
+
             // Refresh the webview to show the updated list
             this.webviewProvider?.refreshList();
 
-            vscode.window.showInformationMessage(
+            await this.notificationManager.showInformationMessage(
                 `Deleted ${deletedCount} old snapshot${deletedCount === 1 ? '' : 's'} to maintain the configured limit of ${maxCount}.`
             );
         } else {
@@ -776,7 +777,7 @@ export class SnapshotManager {
                 false,
                 vscode.ConfigurationTarget.Global
             );
-            vscode.window.showInformationMessage('Snapshot limit has been disabled to prevent data loss.');
+            await this.notificationManager.showInformationMessage('Snapshot limit has been disabled to prevent data loss.');
         }
     }
   }
@@ -789,11 +790,10 @@ export class SnapshotManager {
         const maxCount = this.getMaxSnapshotCount();
         if (snapshots.length > maxCount) {
             // Ask for confirmation before deleting snapshots
-            const result = await vscode.window.showWarningMessage(
+            const result = await this.notificationManager.showWarningMessage(
                 `Adding this snapshot will exceed your snapshot limit (${maxCount}). ${snapshots.length - maxCount} older snapshot(s) will be deleted. Do you want to continue?`,
-                { modal: true },
-                'Yes',
-                'No'
+                ['Yes', 'No'],
+                true // modal
             );
 
             if (result === 'Yes') {
@@ -808,7 +808,7 @@ export class SnapshotManager {
                     vscode.ConfigurationTarget.Global
                 );
                 await this.saveSnapshots(snapshots);
-                vscode.window.showInformationMessage('Snapshot limit has been disabled to prevent data loss.');
+                await this.notificationManager.showInformationMessage('Snapshot limit has been disabled to prevent data loss.');
             }
         } else {
             await this.saveSnapshots(snapshots);
@@ -839,17 +839,17 @@ export class SnapshotManager {
     // Process files in parallel batches
     for (let i = 0; i < files.length; i += batchSize * maxParallelBatches) {
       const parallelBatches = [];
-      
+
       // Create multiple batches to process in parallel
       for (let j = 0; j < maxParallelBatches && i + j * batchSize < files.length; j++) {
         const batchStart = i + j * batchSize;
         const batch = files.slice(batchStart, batchStart + batchSize);
-        
+
         parallelBatches.push(Promise.all(batch.map(async (uri) => {
           try {
             const baseDir = snapshotRoot || workspaceFolder.uri.fsPath;
             const relativePath = path.relative(baseDir, uri.fsPath);
-            
+
             if (this.shouldSkipFile(relativePath, workspaceFolder.uri.fsPath)) {
               skippedFiles++;
               return null;
@@ -904,11 +904,11 @@ export class SnapshotManager {
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     if (skippedFiles > 0) {
-      vscode.window.showInformationMessage(
+      await this.notificationManager.showInformationMessage(
         `Snapshot created in ${elapsed}s (${skippedFiles} files skipped)`
       );
     } else {
-      vscode.window.showInformationMessage(
+      await this.notificationManager.showInformationMessage(
         `Snapshot created in ${elapsed}s`
       );
     }
@@ -928,11 +928,11 @@ export class SnapshotManager {
       }
 
       progress.report({ message: 'Checking for changes...' });
-      
+
       if (this.shouldSkipUnchangedSnapshots()) {
         const hasChanges = await this.hasChangedFiles();
         if (!hasChanges) {
-          vscode.window.showInformationMessage('Snapshot skipped - no changes detected');
+          await this.notificationManager.showInformationMessage('Snapshot skipped - no changes detected');
           return;
         }
       }
@@ -1003,7 +1003,7 @@ export class SnapshotManager {
     const snapshots = this.getSnapshots();
     const updatedSnapshots = snapshots.filter(s => !(s.name === snapshotName && s.timestamp === timestamp));
     await this.saveSnapshots(updatedSnapshots);
-    vscode.window.showInformationMessage(`Deleted snapshot: ${snapshotName}`);
+    await this.notificationManager.showInformationMessage(`Deleted snapshot: ${snapshotName}`);
     return true;
   }
 
@@ -1043,7 +1043,7 @@ export class SnapshotManager {
                 pattern,
                 '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
             );
-            
+
             for (const uri of uris) {
                 const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
                 if (!this.shouldSkipFile(relativePath)) {
@@ -1067,7 +1067,7 @@ export class SnapshotManager {
 
         // Then delete files that shouldn't exist
         if (filesToDelete.length > 0) {
-            progress.report({ 
+            progress.report({
                 message: `Removing ${filesToDelete.length} files that don't exist in the snapshot...`,
                 increment: 0
             });
@@ -1083,7 +1083,7 @@ export class SnapshotManager {
                         });
                     } catch (error) {
                         console.error(`Failed to delete file: ${fullPath}`, error);
-                        vscode.window.showErrorMessage(`Failed to delete file: ${fileToDelete}`);
+                        await this.notificationManager.showErrorMessage(`Failed to delete file: ${fileToDelete}`);
                     }
                 }
             }
@@ -1092,7 +1092,7 @@ export class SnapshotManager {
   }
 
   private async restoreFiles(
-    files: FileSnapshot[], 
+    files: FileSnapshot[],
     progress: vscode.Progress<{ message?: string; increment?: number }>,
     totalOperations?: number,
     startingProgress: number = 0
@@ -1112,20 +1112,20 @@ export class SnapshotManager {
                 // Ensure the directory exists
                 const dirPath = path.dirname(fullPath);
                 await vscode.workspace.fs.createDirectory(vscode.Uri.file(dirPath));
-                
+
                 // Write the file
                 await vscode.workspace.fs.writeFile(
                     vscode.Uri.file(fullPath),
                     Buffer.from(file.content, 'utf8')
                 );
                 processed++;
-                progress.report({ 
+                progress.report({
                     message: `Restoring files (${processed}/${total})`,
                     increment: (100 / total)
                 });
             } catch (error) {
                 console.error(`Failed to restore file: ${fullPath}`, error);
-                vscode.window.showErrorMessage(`Failed to restore file: ${file.relativePath}`);
+                await this.notificationManager.showErrorMessage(`Failed to restore file: ${file.relativePath}`);
             }
         }
     }
@@ -1204,7 +1204,7 @@ export class SnapshotManager {
                 try {
                   const content = await this.readFileContent(uri);
                   // For directory snapshots, we need to keep the paths relative to the snapshot directory
-                  const adjustedPath = snapshot.snapshotScope?.type === 'directory' 
+                  const adjustedPath = snapshot.snapshotScope?.type === 'directory'
                     ? path.relative(snapshot.snapshotScope.uri, uri.fsPath)
                     : relativePath;
                   currentFiles.set(adjustedPath, content);
@@ -1230,7 +1230,7 @@ export class SnapshotManager {
             for (const [relativePath, file] of snapshotFiles) {
                 try {
                     processedFiles++;
-                    progress.report({ 
+                    progress.report({
                         message: `Comparing files (${processedFiles}/${totalFiles})`,
                         increment: (100 / totalFiles)
                     });
@@ -1267,7 +1267,7 @@ export class SnapshotManager {
             for (const [relativePath, content] of currentFiles) {
                 try {
                     processedFiles++;
-                    progress.report({ 
+                    progress.report({
                         message: `Comparing files (${processedFiles}/${totalFiles})`,
                         increment: (100 / totalFiles)
                     });
@@ -1285,7 +1285,7 @@ export class SnapshotManager {
             }
 
             if (changedFiles.length === 0) {
-                vscode.window.showInformationMessage('No differences found in any files.');
+                await this.notificationManager.showInformationMessage('No differences found in any files.');
                 return;
             }
 
@@ -1295,7 +1295,7 @@ export class SnapshotManager {
             }
         } catch (error) {
             console.error('Failed to show diff:', error);
-            vscode.window.showErrorMessage('Failed to show diff view');
+            await this.notificationManager.showErrorMessage('Failed to show diff view');
         }
     });
 }
@@ -1320,7 +1320,7 @@ export class SnapshotManager {
             }
         } catch (error) {
             console.error('Failed to show tree view:', error);
-            vscode.window.showErrorMessage('Failed to show tree view');
+            await this.notificationManager.showErrorMessage('Failed to show tree view');
         }
     });
   }
@@ -1357,7 +1357,7 @@ export class SnapshotManager {
 
         progress.report({ message: 'Analyzing file...' });
 
-        const workspaceFolder = workspaceFolders.find(folder => 
+        const workspaceFolder = workspaceFolders.find(folder =>
             uri.fsPath.startsWith(folder.uri.fsPath)
         );
 
@@ -1374,15 +1374,15 @@ export class SnapshotManager {
             progress.report({ message: 'Checking for changes...' });
             const document = await vscode.workspace.openTextDocument(uri);
             const content = document.getText();
-            
+
             // Check if this file exists in the last snapshot
             const snapshots = this.getSnapshots();
             const lastSnapshot = snapshots.sort((a, b) => b.timestamp - a.timestamp)[0];
-            
+
             if (lastSnapshot) {
                 const lastFile = lastSnapshot.files.find(f => f.relativePath === relativePath);
                 if (lastFile && lastFile.content === content) {
-                    vscode.window.showInformationMessage('File snapshot skipped - no changes detected');
+                    await this.notificationManager.showInformationMessage('File snapshot skipped - no changes detected');
                     return;
                 }
             }
@@ -1434,7 +1434,7 @@ export class SnapshotManager {
 
         progress.report({ message: 'Analyzing directory...' });
 
-        const workspaceFolder = workspaceFolders.find(folder => 
+        const workspaceFolder = workspaceFolders.find(folder =>
             uri.fsPath.startsWith(folder.uri.fsPath)
         );
 
@@ -1469,7 +1469,7 @@ export class SnapshotManager {
         progress.report({ message: 'Saving snapshot...' });
         const dirName = path.basename(uri.fsPath);
         const timestamp = this.formatTimestamp();
-        
+
         const snapshot: Snapshot = {
             name: `${dirName} - ${timestamp}`,
             timestamp: Date.now(),
@@ -1523,7 +1523,7 @@ export class SnapshotManager {
     }
 
     this.webviewProvider?.refreshList();
-    vscode.window.showInformationMessage('All snapshots have been deleted');
+    await this.notificationManager.showInformationMessage('All snapshots have been deleted');
     return true;
   }
 
@@ -1541,14 +1541,14 @@ export class SnapshotManager {
 
     const snapshots = this.getSnapshots();
     const snapshotToRename = snapshots.find(s => s.name === oldName && s.timestamp === timestamp);
-    
+
     if (!snapshotToRename) {
       throw new Error('Snapshot not found');
     }
 
     // Check if another snapshot (excluding the current one) has the same name
-    const duplicateName = snapshots.some(s => 
-      s.name === newName && 
+    const duplicateName = snapshots.some(s =>
+      s.name === newName &&
       !(s.name === oldName && s.timestamp === timestamp)
     );
 
@@ -1567,7 +1567,7 @@ export class SnapshotManager {
   public async createSnapshot(name?: string): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
-      vscode.window.showErrorMessage('No workspace folder is open');
+      await this.notificationManager.showErrorMessage('No workspace folder is open');
       return;
     }
 
@@ -1600,7 +1600,7 @@ export class SnapshotManager {
     try {
       const gitignorePath = path.join(workspaceFolder, '.gitignore');
       const gitignoreUri = vscode.Uri.file(gitignorePath);
-      
+
       try {
         await vscode.workspace.fs.stat(gitignoreUri);
       } catch {

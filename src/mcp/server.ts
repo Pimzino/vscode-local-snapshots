@@ -7,6 +7,7 @@ import { handleToolCall } from './mcpTools';
 import { MCPInitResponse, MCPServerInfo, MCPCapabilities } from './types';
 import { execSync } from 'child_process';
 import { findAvailablePort, DEFAULT_PORTS } from '../utils/portUtils';
+import { NotificationManager } from '../utils/NotificationManager';
 
 // Express types
 type Request = express.Request;
@@ -20,6 +21,7 @@ export class MCPServer {
     private server: any;
     private sessions: Map<string, { sseRes: Response, initialized: boolean }> = new Map();
     private port: number;
+    private notificationManager: NotificationManager = NotificationManager.getInstance();
 
     constructor(private snapshotManager: SnapshotManager) {
         console.log('[MCP] Initializing MCP server');
@@ -371,17 +373,17 @@ export class MCPServer {
 
                 // Create the server
                 console.log(`[MCP] Creating HTTP server for port ${port}`);
-                this.server = this.app.listen(port, () => {
+                this.server = this.app.listen(port, async () => {
                     console.log(`[MCP] Server successfully started on port ${port}`);
                     console.log(`[MCP] Server object:`, this.server ? 'Created successfully' : 'Failed to create');
 
                     // Show a notification to the user
                     if (port !== DEFAULT_PORTS.MCP) {
-                        vscode.window.showInformationMessage(
+                        await this.notificationManager.showInformationMessage(
                             `MCP server running on port ${port} (default port ${DEFAULT_PORTS.MCP} was in use)`
                         );
                     } else {
-                        vscode.window.showInformationMessage(
+                        await this.notificationManager.showInformationMessage(
                             `MCP server running on port ${port}`
                         );
                     }

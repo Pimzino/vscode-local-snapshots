@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { DiffFile } from '../types/interfaces';
+import { NotificationManager } from '../utils/NotificationManager';
 
 export class SnapshotDiffWebviewProvider {
     private _panel?: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
     private _snapshotName: string = '';
     private _timestamp: number = 0;
+    private notificationManager: NotificationManager = NotificationManager.getInstance();
 
     constructor(
         extensionUri: vscode.Uri,
@@ -62,7 +64,7 @@ export class SnapshotDiffWebviewProvider {
                                 filePath: message.filePath
                             });
                         } catch (error) {
-                            vscode.window.showErrorMessage(`Failed to restore file: ${message.filePath}`);
+                            await this.notificationManager.showErrorMessage(`Failed to restore file: ${message.filePath}`);
                         }
                         break;
                 }
@@ -169,7 +171,7 @@ export class SnapshotDiffWebviewProvider {
                 </div>
             </div>
             <div id="files-list" class="files-list"></div>
-            
+
             <template id="file-template">
                 <div class="file-group">
                     <div class="file-header" title="Click anywhere to expand/collapse">
@@ -209,4 +211,4 @@ export class SnapshotDiffWebviewProvider {
         }
         return text;
     }
-} 
+}

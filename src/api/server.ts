@@ -3,11 +3,13 @@ import { Express, Request, Response } from 'express';
 import * as vscode from 'vscode';
 import { SnapshotManager } from '../managers/SnapshotManager';
 import { findAvailablePort, DEFAULT_PORTS } from '../utils/portUtils';
+import { NotificationManager } from '../utils/NotificationManager';
 
 export class ApiServer {
     private app: Express;
     private server: any;
     private port: number | undefined;
+    private notificationManager: NotificationManager = NotificationManager.getInstance();
 
     constructor(private snapshotManager: SnapshotManager) {
         console.log('[API] Initializing API server');
@@ -158,7 +160,7 @@ export class ApiServer {
 
                 // Create the server
                 console.log(`[API] Creating HTTP server for port ${port}`);
-                this.server = this.app.listen(port, () => {
+                this.server = this.app.listen(port, async () => {
                     console.log(`[API] Server successfully started on port ${port}`);
 
                     // Store the port
@@ -166,11 +168,11 @@ export class ApiServer {
 
                     // Show a notification to the user
                     if (port !== DEFAULT_PORTS.API) {
-                        vscode.window.showInformationMessage(
+                        await this.notificationManager.showInformationMessage(
                             `API server running on port ${port} (default port ${DEFAULT_PORTS.API} was in use)`
                         );
                     } else {
-                        vscode.window.showInformationMessage(
+                        await this.notificationManager.showInformationMessage(
                             `API server running on port ${port}`
                         );
                     }

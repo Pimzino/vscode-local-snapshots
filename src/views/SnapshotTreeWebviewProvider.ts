@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { FileSnapshot } from '../types/interfaces';
+import { NotificationManager } from '../utils/NotificationManager';
 
 export class SnapshotTreeWebviewProvider {
 	private panel: vscode.WebviewPanel | undefined;
 	private snapshotName: string | undefined;
 	private timestamp: number | undefined;
+	private notificationManager: NotificationManager = NotificationManager.getInstance();
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -52,13 +54,13 @@ export class SnapshotTreeWebviewProvider {
 				case 'restoreFile':
 					try {
 						await this.restoreFileCallback(message.filePath);
-						this.panel?.webview.postMessage({ 
-							command: 'fileRestored', 
-							filePath: message.filePath 
+						this.panel?.webview.postMessage({
+							command: 'fileRestored',
+							filePath: message.filePath
 						});
-						vscode.window.showInformationMessage(`Restored file: ${message.filePath}`);
+						await this.notificationManager.showInformationMessage(`Restored file: ${message.filePath}`);
 					} catch (error) {
-						vscode.window.showErrorMessage(`Failed to restore file: ${message.filePath}`);
+						await this.notificationManager.showErrorMessage(`Failed to restore file: ${message.filePath}`);
 					}
 					break;
 			}
