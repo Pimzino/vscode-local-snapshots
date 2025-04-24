@@ -2,6 +2,20 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.13] - 2025-04-24
+
+### 🐛 Bug Fixes
+
+- Fixed "Maximum Call Stack Size Exceeded" error related to notifications:
+  - Implemented a notification throttling mechanism to prevent recursive notifications
+  - Added safeguards to prevent infinite notification loops
+  - Created a new NotificationManager utility class to handle all notifications safely
+  - Added a new "quietMode" setting to reduce the number of non-critical notifications
+
+### ⚙️ New Settings
+
+- `localSnapshots.quietMode`: Reduce the number of notifications shown. Only critical notifications will be displayed.
+
 ## [0.0.12] - 2025-03-30
 
 ### 🚀 Major Update: MCP Server, Custom Settings UI & Dynamic Port Management

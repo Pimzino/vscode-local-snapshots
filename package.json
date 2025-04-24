@@ -2,7 +2,7 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Create and manage local snapshots of your workspace files",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
@@ -148,6 +148,11 @@
           "type": "boolean",
           "default": false,
           "description": "Enable the MCP (Model Context Protocol) SSE server for AI tool integration. The server will automatically use an available port."
+        },
+        "localSnapshots.quietMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Reduce the number of notifications shown. Only critical notifications will be displayed."
         }
       }
     },

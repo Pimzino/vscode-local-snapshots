@@ -507,6 +507,12 @@ export class SettingsWebviewProvider {
                 description: 'Show confirmation dialog when deleting snapshots',
                 category: 'General'
             },
+            'quietMode': {
+                type: 'boolean',
+                default: false,
+                description: 'Reduce the number of notifications shown. Only critical notifications will be displayed.',
+                category: 'General'
+            },
 
             // Storage Management
             'limitSnapshotCount': {
