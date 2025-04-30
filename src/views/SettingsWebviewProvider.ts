@@ -228,6 +228,19 @@ export class SettingsWebviewProvider {
         console.log(`[SettingsProvider] Updating setting ${key} to ${value}`);
 
         try {
+            // Special handling for customIgnorePatterns to filter out empty strings
+            if (key === 'customIgnorePatterns' && Array.isArray(value)) {
+                // Filter out empty strings
+                value = value.filter(item => {
+                    if (typeof item === 'string') {
+                        return item.trim() !== '';
+                    } else if (typeof item === 'object' && item !== null && item.pattern) {
+                        return item.pattern.trim() !== '';
+                    }
+                    return true;
+                });
+            }
+
             // Special handling for API server
             if (key === 'enableApiServer') {
                 if (value === true) {

@@ -834,7 +834,17 @@
             addButton.className = 'array-add';
             addButton.innerHTML = '<span class="codicon codicon-add"></span> Add Item';
             addButton.addEventListener('click', () => {
-                const newItems = [...items, ''];
+                // Filter out any existing empty items before adding a new one
+                const filteredItems = items.filter(item => {
+                    if (typeof item === 'string') {
+                        return item.trim() !== '';
+                    } else if (typeof item === 'object' && item !== null && item.pattern) {
+                        return item.pattern.trim() !== '';
+                    }
+                    return true;
+                });
+
+                const newItems = [...filteredItems, ''];
                 vscode.postMessage({
                     command: 'updateSetting',
                     key: setting.key,
@@ -842,42 +852,15 @@
                 });
 
                 // Immediately add a new empty input field to the UI
-                const newItemIndex = items.length;
+                // Use the actual length of all items in the wrapper plus built-in patterns
+                // to ensure the new item is added at the end
+                const allCurrentItems = itemsWrapper.querySelectorAll('.array-item');
+                const newItemIndex = allCurrentItems.length;
                 const newItem = createArrayItem(setting, '', newItemIndex);
                 itemsWrapper.appendChild(newItem);
 
                 // Update the header text with the new count
-                // Count patterns by type
-                let builtInCount = 0;
-                let gitignoreCount = 0;
-                let userCount = 0;
-
-                // First count built-in patterns from our predefined list
-                builtInCount = builtInPatterns.length;
-
-                // Then count gitignore patterns and user patterns
-                newItems.forEach(item => {
-                    // Check if it's a gitignore pattern object
-                    if (typeof item === 'object' && item !== null && item.fromGitignore) {
-                        gitignoreCount++;
-                    } else {
-                        // Get the pattern value
-                        const patternValue = typeof item === 'object' && item !== null && item.pattern ? item.pattern : item;
-
-                        // Check if it's a built-in pattern
-                        const isBuiltIn = builtInPatterns.some(bp => bp.pattern === patternValue);
-                        if (isBuiltIn) {
-                            // Don't increment builtInCount as we already counted these
-                        } else {
-                            // User pattern
-                            userCount++;
-                        }
-                    }
-                });
-
-                const updatedTotalPatterns = builtInCount + gitignoreCount + userCount;
-
-                headerText.textContent = `${updatedTotalPatterns} exclusion patterns (${builtInCount} built-in, ${gitignoreCount} from .gitignore)`;
+                updateExclusionHeaderCount(setting.key, newItems);
 
                 // Expand the list when adding a new item
                 if (itemsWrapper.classList.contains('collapsed')) {
@@ -905,12 +888,28 @@
             addButton.className = 'array-add';
             addButton.innerHTML = '<span class="codicon codicon-add"></span> Add Item';
             addButton.addEventListener('click', () => {
-                const newItems = [...items, ''];
+                // Filter out any existing empty items before adding a new one
+                const filteredItems = items.filter(item => {
+                    if (typeof item === 'string') {
+                        return item.trim() !== '';
+                    } else if (typeof item === 'object' && item !== null && item.pattern) {
+                        return item.pattern.trim() !== '';
+                    }
+                    return true;
+                });
+
+                const newItems = [...filteredItems, ''];
                 vscode.postMessage({
                     command: 'updateSetting',
                     key: setting.key,
                     value: newItems
                 });
+
+                // Immediately add a new empty input field to the UI
+                const allCurrentItems = container.querySelectorAll('.array-item');
+                const newItemIndex = allCurrentItems.length;
+                const newItem = createArrayItem(setting, '', newItemIndex);
+                container.appendChild(newItem);
             });
 
             container.appendChild(addButton);
@@ -983,6 +982,25 @@
             item.classList.add('system-pattern');
         } else {
             input.addEventListener('change', () => {
+                // Don't save empty patterns
+                if (input.value.trim() === '') {
+                    // If the pattern is empty, remove it from the list
+                    const newItems = [...(setting.value || [])];
+                    newItems.splice(index, 1);
+                    vscode.postMessage({
+                        command: 'updateSetting',
+                        key: setting.key,
+                        value: newItems
+                    });
+
+                    // Immediately remove this item from the UI
+                    item.remove();
+
+                    // Update the header text if this is the exclusion list
+                    updateExclusionHeaderCount(setting.key, newItems);
+                    return;
+                }
+
                 const newItems = [...(setting.value || [])];
                 newItems[index] = input.value;
                 vscode.postMessage({
@@ -1078,6 +1096,53 @@
         item.appendChild(input);
         item.appendChild(removeButton);
         return item;
+    }
+
+    /**
+     * Update the exclusion header count when items are added or removed
+     * @param {string} settingKey - The setting key
+     * @param {Array} items - The updated items array
+     */
+    function updateExclusionHeaderCount(settingKey, items) {
+        if (settingKey === 'customIgnorePatterns') {
+            const settingItem = document.querySelector(`.setting-item[data-key="${settingKey}"]`);
+            if (settingItem) {
+                const headerText = settingItem.querySelector('.array-header-text');
+                if (headerText) {
+                    // Count patterns by type
+                    let builtInCount = 0;
+                    let gitignoreCount = 0;
+                    let userCount = 0;
+
+                    // First count built-in patterns from our predefined list
+                    builtInCount = builtInPatterns.length;
+
+                    // Then count gitignore patterns and user patterns
+                    items.forEach(item => {
+                        // Check if it's a gitignore pattern object
+                        if (typeof item === 'object' && item !== null && item.fromGitignore) {
+                            gitignoreCount++;
+                        } else {
+                            // Get the pattern value
+                            const patternValue = typeof item === 'object' && item !== null && item.pattern ? item.pattern : item;
+
+                            // Check if it's a built-in pattern
+                            const isBuiltIn = builtInPatterns.some(bp => bp.pattern === patternValue);
+                            if (isBuiltIn) {
+                                // Don't increment builtInCount as we already counted these
+                            } else {
+                                // User pattern
+                                userCount++;
+                            }
+                        }
+                    });
+
+                    const updatedTotalPatterns = builtInCount + gitignoreCount + userCount;
+
+                    headerText.textContent = `${updatedTotalPatterns} exclusion patterns (${builtInCount} built-in, ${gitignoreCount} from .gitignore)`;
+                }
+            }
+        }
     }
 
     /**

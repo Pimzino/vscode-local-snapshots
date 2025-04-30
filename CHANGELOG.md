@@ -12,6 +12,12 @@ All notable changes to the "Local Snapshots" extension will be documented in thi
   - Added proper handling of untitled files in pre-save snapshots
   - Enhanced logging and error handling for untitled file operations
 
+- Exclusions List:
+  - Improved filtering to prevent duplicate entries and ensure a clean UI
+  - Implemented proper indexing to ensure correct indices for future operations
+  - Fixed UI not refreshing when removing / adding entries
+  - Made the exclusions list collapsible for better organization
+
 ## [0.0.13] - 2025-04-24
 
 ### 🐛 Bug Fixes
