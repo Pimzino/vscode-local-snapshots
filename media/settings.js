@@ -841,6 +841,11 @@
                     value: newItems
                 });
 
+                // Immediately add a new empty input field to the UI
+                const newItemIndex = items.length;
+                const newItem = createArrayItem(setting, '', newItemIndex);
+                itemsWrapper.appendChild(newItem);
+
                 // Update the header text with the new count
                 // Count patterns by type
                 let builtInCount = 0;
@@ -1022,6 +1027,9 @@
                     key: setting.key,
                     value: newItems
                 });
+
+                // Immediately remove this item from the UI
+                item.remove();
 
                 // Update the header text if this is the exclusion list
                 if (setting.key === 'customIgnorePatterns') {
