@@ -410,13 +410,130 @@ body {
     gap: var(--spacing-sm);
 }
 
+/* Collapsible array header */
+.array-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background-color: var(--vscode-list-hoverBackground);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all var(--transition-duration) ease;
+    margin-bottom: var(--spacing-xs);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.array-header:hover {
+    background-color: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.array-toggle {
+    background: none;
+    border: none;
+    color: inherit;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.array-toggle .codicon {
+    font-size: 14px;
+    transition: transform 0.2s ease;
+}
+
+.array-header-text {
+    font-weight: 500;
+    font-size: 13px;
+}
+
+.array-items-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding-left: var(--spacing-md);
+    overflow-y: auto;
+    max-height: 300px; /* Limit height and enable scrolling */
+    opacity: 1;
+    transition: max-height 0.3s ease, opacity 0.2s ease, margin 0.3s ease;
+    scrollbar-width: thin; /* For Firefox */
+    scrollbar-color: transparent transparent; /* For Firefox */
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.array-items-wrapper::-webkit-scrollbar {
+    width: 4px;
+}
+
+.array-items-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.array-items-wrapper::-webkit-scrollbar-thumb {
+    background-color: var(--vscode-scrollbarSlider-background);
+    border-radius: 4px;
+    opacity: 0.5;
+}
+
+.array-items-wrapper:hover::-webkit-scrollbar-thumb {
+    background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.array-items-wrapper.collapsed {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    pointer-events: none;
+    overflow: hidden; /* Hide overflow when collapsed */
+}
+
 .array-item {
     display: flex;
     gap: var(--spacing-xs);
+    align-items: center;
 }
 
 .array-item-input {
     flex: 1;
+}
+
+.array-item-input:disabled {
+    opacity: 0.7;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-disabledForeground, var(--vscode-foreground));
+    border-color: var(--vscode-input-border);
+    cursor: not-allowed;
+}
+
+.array-item.system-pattern {
+    background-color: var(--vscode-editor-inactiveSelectionBackground, rgba(128, 128, 128, 0.1));
+    border-radius: 4px;
+    padding: 2px 4px;
+}
+
+.pattern-source {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 4px;
+    white-space: nowrap;
+}
+
+.pattern-source.built-in {
+    background-color: var(--vscode-statusBarItem-prominentBackground, #388a34);
+    color: var(--vscode-statusBarItem-prominentForeground, #ffffff);
+}
+
+.pattern-source.gitignore {
+    background-color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991);
+    color: var(--vscode-editor-background);
 }
 
 .array-item-remove {
@@ -429,8 +546,18 @@ body {
     transition: all var(--transition-duration) ease;
 }
 
-.array-item-remove:hover {
+.array-item-remove:hover:not(.disabled) {
     background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.array-item-remove.disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.array-add-container {
+    padding-left: var(--spacing-md);
+    margin-top: var(--spacing-xs);
 }
 
 .array-add {
@@ -446,7 +573,6 @@ body {
     font-size: 12px;
     transition: all var(--transition-duration) ease;
     align-self: flex-start;
-    margin-top: var(--spacing-xs);
 }
 
 .array-add:hover {

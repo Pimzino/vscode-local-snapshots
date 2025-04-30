@@ -337,6 +337,33 @@ export class SnapshotManager {
     }
   }
 
+  private isUntitledFile(uri: vscode.Uri): boolean {
+    return uri.scheme === 'untitled';
+  }
+
+  private getUntitledFilePath(document: vscode.TextDocument): string {
+    // Create a special path for untitled files that includes the filename
+    return `_untitled/${path.basename(document.fileName)}`;
+  }
+
+  private async findUntitledFileContent(relativePath: string): Promise<string | null> {
+    // Extract the filename from the _untitled/ path
+    const filename = relativePath.replace('_untitled/', '');
+
+    // Check all open text documents for matching untitled files
+    for (const document of vscode.workspace.textDocuments) {
+      if (document.uri.scheme === 'untitled') {
+        // Try to match by filename or path
+        if (document.uri.path === filename ||
+            document.fileName === filename ||
+            path.basename(document.fileName) === filename) {
+          return document.getText();
+        }
+      }
+    }
+
+    return null; // Not found
+  }
 
 
   private isPreSaveSnapshotsEnabled(): boolean {
@@ -593,31 +620,53 @@ export class SnapshotManager {
       }
 
       const workspaceFolder = workspaceFolders[0];
-      if (!document.uri.fsPath.startsWith(workspaceFolder.uri.fsPath)) {
-        console.log('File not in workspace');
-        return;
+      let relativePath: string;
+
+      // Check if this is an untitled file
+      if (this.isUntitledFile(document.uri)) {
+        // For untitled files, use a special path format
+        relativePath = this.getUntitledFilePath(document);
+        console.log(`Creating snapshot for untitled file: ${relativePath}`);
+        console.log(`Untitled file content length: ${previousContent ? previousContent.length : 0}`);
+        console.log(`Untitled file content preview: ${previousContent ? previousContent.substring(0, 50) : 'EMPTY'}`);
+
+        // Double-check that we have content
+        if (!previousContent || previousContent.length === 0) {
+          // If previousContent is empty, get the current content
+          previousContent = document.getText();
+          console.log(`Updated untitled file content length: ${previousContent.length}`);
+        }
+      } else {
+        // For regular files, use the standard relative path
+        if (!document.uri.fsPath.startsWith(workspaceFolder.uri.fsPath)) {
+          console.log('File not in workspace');
+          return;
+        }
+
+        relativePath = path.relative(workspaceFolder.uri.fsPath, document.uri.fsPath);
+
+        if (this.shouldSkipFile(relativePath)) {
+          console.log(`Skipping file: ${relativePath}`);
+          return;
+        }
       }
 
-      const relativePath = path.relative(workspaceFolder.uri.fsPath, document.uri.fsPath);
+      console.log(`Creating snapshot for ${relativePath}`);
 
-      if (this.shouldSkipFile(relativePath)) {
-        console.log(`Skipping file: ${relativePath}`);
-        return;
-      }
-
-        console.log(`Creating snapshot for ${relativePath}`);
-
-        const snapshotName = `${path.basename(document.fileName)} - ${this.formatTimestamp()}`;
-        const snapshot: Snapshot = {
+      const snapshotName = `${path.basename(document.fileName)} - ${this.formatTimestamp()}`;
+      const snapshot: Snapshot = {
         name: snapshotName,
         timestamp: Date.now(),
         files: [{
           content: previousContent,
           relativePath
-        }]
-        };
-
-
+        }],
+        // Add a snapshotScope to indicate this is a single file snapshot
+        snapshotScope: {
+          type: 'file',
+          uri: document.uri.toString() // Use toString() to preserve the scheme
+        }
+      };
 
       const snapshots = this.getSnapshots();
       snapshots.push(snapshot);
@@ -1032,23 +1081,58 @@ export class SnapshotManager {
             return;
         }
 
-        // For full restore, we need to handle deletions as well
+        // Check if this is a pre-save snapshot (single file)
+        const isSingleFileSnapshot = snapshot.files.length === 1 &&
+                                    (snapshot.snapshotScope?.type === 'file' ||
+                                     snapshot.files[0].relativePath.startsWith('_untitled/'));
+
+        // For single-file snapshots, just restore the file without deleting anything else
+        if (isSingleFileSnapshot) {
+            progress.report({ message: 'Restoring single file...' });
+            await this.restoreFiles(snapshot.files, progress);
+            return;
+        }
+
+        // For full workspace/directory snapshots, we need to handle deletions as well
         progress.report({ message: 'Analyzing workspace changes...' });
 
-        // Get all current workspace files
-        const currentFiles = new Set<string>();
-        for (const folder of workspaceFolders) {
-            const pattern = new vscode.RelativePattern(folder, '**/*');
-            const uris = await vscode.workspace.findFiles(
-                pattern,
-                '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
-            );
+        // Determine the scope of files to consider for deletion
+        let scanPattern: vscode.RelativePattern;
+        let scanRoot: vscode.Uri;
 
-            for (const uri of uris) {
-                const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
-                if (!this.shouldSkipFile(relativePath)) {
-                    currentFiles.add(relativePath);
-                }
+        if (snapshot.snapshotScope) {
+            switch (snapshot.snapshotScope.type) {
+                case 'directory':
+                    // For directory snapshots, only consider files in that directory
+                    scanRoot = vscode.Uri.file(snapshot.snapshotScope.uri);
+                    scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
+                    break;
+                default:
+                    // For workspace snapshots, consider all files
+                    scanRoot = workspaceFolders[0].uri;
+                    scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
+            }
+        } else {
+            // Default to workspace scope for backward compatibility
+            scanRoot = workspaceFolders[0].uri;
+            scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
+        }
+
+        // Get all current files within the scope
+        const currentFiles = new Set<string>();
+        const uris = await vscode.workspace.findFiles(
+            scanPattern,
+            '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
+        );
+
+        for (const uri of uris) {
+            const relativePath = path.relative(scanRoot.fsPath, uri.fsPath);
+            if (!this.shouldSkipFile(relativePath)) {
+                // For directory snapshots, adjust the path to be relative to the snapshot directory
+                const adjustedPath = snapshot.snapshotScope?.type === 'directory'
+                    ? path.relative(snapshot.snapshotScope.uri, uri.fsPath)
+                    : relativePath;
+                currentFiles.add(adjustedPath);
             }
         }
 
@@ -1073,18 +1157,20 @@ export class SnapshotManager {
             });
 
             for (const fileToDelete of filesToDelete) {
-                for (const folder of workspaceFolders) {
-                    const fullPath = path.join(folder.uri.fsPath, fileToDelete);
-                    try {
-                        await vscode.workspace.fs.delete(vscode.Uri.file(fullPath));
-                        completedOperations++;
-                        progress.report({
-                            increment: (100 / totalOperations)
-                        });
-                    } catch (error) {
-                        console.error(`Failed to delete file: ${fullPath}`, error);
-                        await this.notificationManager.showErrorMessage(`Failed to delete file: ${fileToDelete}`);
-                    }
+                // For directory snapshots, adjust the path
+                const fullPath = snapshot.snapshotScope?.type === 'directory'
+                    ? path.join(snapshot.snapshotScope.uri, fileToDelete)
+                    : path.join(scanRoot.fsPath, fileToDelete);
+
+                try {
+                    await vscode.workspace.fs.delete(vscode.Uri.file(fullPath));
+                    completedOperations++;
+                    progress.report({
+                        increment: (100 / totalOperations)
+                    });
+                } catch (error) {
+                    console.error(`Failed to delete file: ${fullPath}`, error);
+                    await this.notificationManager.showErrorMessage(`Failed to delete file: ${fileToDelete}`);
                 }
             }
         }
@@ -1106,6 +1192,64 @@ export class SnapshotManager {
     let processed = startingProgress;
 
     for (const file of files) {
+        // Handle untitled files specially
+        if (file.relativePath.startsWith('_untitled/')) {
+            try {
+                // For untitled files, we need to create a new untitled document
+                const fileName = file.relativePath.replace('_untitled/', '');
+
+                console.log(`Restoring untitled file in batch: ${fileName}`);
+                console.log(`Content length: ${file.content ? file.content.length : 0}`);
+                console.log(`Content preview: ${file.content ? file.content.substring(0, 50) : 'EMPTY'}`);
+
+                // Ensure we have content
+                if (!file.content || file.content.length === 0) {
+                    console.log(`Warning: Empty content for untitled file: ${fileName}`);
+                    await this.notificationManager.showWarningMessage(`Empty content for untitled file: ${fileName}`);
+                }
+
+                // Check if there's already an open untitled document with this name
+                let existingDocument: vscode.TextDocument | undefined;
+                for (const doc of vscode.workspace.textDocuments) {
+                    if (doc.uri.scheme === 'untitled' && path.basename(doc.fileName) === fileName) {
+                        existingDocument = doc;
+                        console.log(`Found existing untitled document: ${doc.fileName}`);
+                        break;
+                    }
+                }
+
+                if (existingDocument) {
+                    // If the document exists, edit it
+                    console.log(`Editing existing untitled document with content length: ${file.content.length}`);
+                    const edit = new vscode.WorkspaceEdit();
+                    const fullRange = new vscode.Range(
+                        existingDocument.lineAt(0).range.start,
+                        existingDocument.lineAt(existingDocument.lineCount - 1).range.end
+                    );
+                    edit.replace(existingDocument.uri, fullRange, file.content);
+                    const success = await vscode.workspace.applyEdit(edit);
+                    console.log(`Edit applied successfully: ${success}`);
+                } else {
+                    // Otherwise create a new untitled document
+                    console.log(`Creating new untitled document with content length: ${file.content.length}`);
+                    const untitledDoc = await vscode.workspace.openTextDocument({ content: file.content });
+                    await vscode.window.showTextDocument(untitledDoc);
+                    console.log(`New untitled document created: ${untitledDoc.fileName}, content length: ${untitledDoc.getText().length}`);
+                }
+
+                processed++;
+                progress.report({
+                    message: `Restoring files (${processed}/${total})`,
+                    increment: (100 / total)
+                });
+            } catch (error) {
+                console.error(`Failed to restore untitled file: ${file.relativePath}`, error);
+                await this.notificationManager.showErrorMessage(`Failed to restore untitled file: ${file.relativePath}`);
+            }
+            continue;
+        }
+
+        // Handle regular files
         for (const folder of workspaceFolders) {
             const fullPath = path.join(folder.uri.fsPath, file.relativePath);
             try {
@@ -1153,150 +1297,270 @@ export class SnapshotManager {
       const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
 
       if (!snapshot || !snapshot.files.length) {
+        throw new Error('Snapshot not found or empty');
+      }
 
-            throw new Error('Snapshot not found or empty');
-        }
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders) {
+        throw new Error('No workspace folder is open');
+      }
 
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) {
-            throw new Error('No workspace folder is open');
-        }
+      try {
+        progress.report({ message: 'Analyzing files...' });
 
-        try {
-            progress.report({ message: 'Analyzing files...' });
+        // Check if this is a pre-save snapshot (single file)
+        const isSingleFileSnapshot = snapshot.files.length === 1 &&
+                                    (snapshot.snapshotScope?.type === 'file' ||
+                                     snapshot.files[0].relativePath.startsWith('_untitled/'));
 
-            // Get all current workspace files
-            const currentFiles = new Map<string, string>();
-            let scanPattern: vscode.RelativePattern;
-            let scanRoot: vscode.Uri;
+        // Create maps for snapshot files and current files
+        const currentFiles = new Map<string, string>();
+        const changedFiles: DiffFile[] = [];
 
-            if (snapshot.snapshotScope) {
-              switch (snapshot.snapshotScope.type) {
-                case 'file':
-                  scanRoot = vscode.Uri.file(path.dirname(snapshot.snapshotScope.uri));
-                  scanPattern = new vscode.RelativePattern(
-                    scanRoot.fsPath,
-                    path.basename(snapshot.snapshotScope.uri)
-                  );
-                  break;
-                case 'directory':
-                  scanRoot = vscode.Uri.file(snapshot.snapshotScope.uri);
-                  scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
-                  break;
-                default:
-                  scanRoot = workspaceFolders[0].uri;
-                  scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
+        if (isSingleFileSnapshot) {
+          // For pre-save snapshots, only compare the specific file
+          const file = snapshot.files[0];
+          const relativePath = file.relativePath;
+
+          progress.report({ message: 'Comparing file...' });
+
+          // Handle untitled files
+          if (relativePath.startsWith('_untitled/')) {
+            // Try to find the file if it's been saved
+            const fileName = relativePath.replace('_untitled/', '');
+            let found = false;
+
+            // Look through all open documents to find a matching file
+            for (const document of vscode.workspace.textDocuments) {
+              if (path.basename(document.fileName) === fileName) {
+                // Found a matching file, compare it
+                const content = document.getText();
+
+                if (content !== file.content) {
+                  changedFiles.push({
+                    relativePath,
+                    path: relativePath,
+                    status: 'modified',
+                    original: file.content,
+                    modified: content
+                  });
+                }
+
+                found = true;
+                break;
               }
-            } else {
-              scanRoot = workspaceFolders[0].uri;
-              scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
             }
 
-            const currentUris = await vscode.workspace.findFiles(
-              scanPattern,
-              '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
-            );
+            if (!found) {
+              // File was closed/deleted
+              changedFiles.push({
+                relativePath,
+                path: relativePath,
+                status: 'deleted',
+                original: file.content
+              });
+            }
+          } else {
+            // Regular file - find it in the workspace
+            let fileUri: vscode.Uri | undefined;
 
-            // Build map of current files with paths relative to scan root
-            for (const uri of currentUris) {
-              const relativePath = path.relative(scanRoot.fsPath, uri.fsPath);
-              if (!this.shouldSkipFile(relativePath)) {
+            // If we have a snapshot scope with a URI, use that
+            if (snapshot.snapshotScope?.uri) {
+              try {
+                // Try to use the exact URI from the snapshot scope
+                fileUri = vscode.Uri.parse(snapshot.snapshotScope.uri);
+
+                // If it's not an untitled file, make sure it exists
+                if (fileUri.scheme === 'file') {
+                  try {
+                    await vscode.workspace.fs.stat(fileUri);
+                  } catch {
+                    // File doesn't exist at that location, try to find it by name
+                    fileUri = undefined;
+                  }
+                }
+              } catch {
+                // Invalid URI, ignore
+                fileUri = undefined;
+              }
+            }
+
+            // If we couldn't get a URI from the snapshot scope, try to find the file
+            if (!fileUri) {
+              for (const folder of workspaceFolders) {
+                const fullPath = path.join(folder.uri.fsPath, relativePath);
+                const uri = vscode.Uri.file(fullPath);
+
                 try {
-                  const content = await this.readFileContent(uri);
-                  // For directory snapshots, we need to keep the paths relative to the snapshot directory
-                  const adjustedPath = snapshot.snapshotScope?.type === 'directory'
-                    ? path.relative(snapshot.snapshotScope.uri, uri.fsPath)
-                    : relativePath;
-                  currentFiles.set(adjustedPath, content);
-                } catch (error) {
-                  console.log(`Skipping likely binary file: ${relativePath}`);
+                  await vscode.workspace.fs.stat(uri);
+                  fileUri = uri;
+                  break;
+                } catch {
+                  // File doesn't exist in this folder
                   continue;
                 }
               }
             }
 
-            // For directory snapshots, the paths in snapshot files are already relative to the snapshot directory
-            const snapshotFiles = new Map(
-              snapshot.files
-                .filter(f => !this.shouldSkipFile(f.relativePath))
-                .map(f => [f.relativePath, f])
-            );
+            if (fileUri) {
+              // File exists, compare it
+              try {
+                const content = await this.readFileContent(fileUri);
 
-            const changedFiles: DiffFile[] = [];
-            let processedFiles = 0;
-            const totalFiles = snapshotFiles.size + currentFiles.size;
-
-            // Check for modified and deleted files
-            for (const [relativePath, file] of snapshotFiles) {
-                try {
-                    processedFiles++;
-                    progress.report({
-                        message: `Comparing files (${processedFiles}/${totalFiles})`,
-                        increment: (100 / totalFiles)
-                    });
-
-                    const currentContent = currentFiles.get(relativePath);
-                    if (currentContent === undefined) {
-                        // File was deleted
-                        changedFiles.push({
-                            relativePath,
-                            path: relativePath,
-                            status: 'deleted',
-                            original: file.content
-                        });
-                    } else if (currentContent !== file.content) {
-                        // File was modified
-                        changedFiles.push({
-                            relativePath,
-                            path: relativePath,
-                            status: 'modified',
-                            original: file.content,
-                            modified: currentContent
-                        });
-                    }
-                    // Remove processed file from currentFiles map
-                    currentFiles.delete(relativePath);
-                } catch (error) {
-                    console.log(`Skipping file due to error: ${relativePath}`, error);
-                    currentFiles.delete(relativePath);
-                    continue;
+                if (content !== file.content) {
+                  changedFiles.push({
+                    relativePath,
+                    path: relativePath,
+                    status: 'modified',
+                    original: file.content,
+                    modified: content
+                  });
                 }
+              } catch (error) {
+                console.log(`Error reading file content: ${relativePath}`, error);
+              }
+            } else {
+              // File was deleted
+              changedFiles.push({
+                relativePath,
+                path: relativePath,
+                status: 'deleted',
+                original: file.content
+              });
             }
+          }
+        } else {
+          // For regular snapshots, use the existing logic to scan all files
+          let scanPattern: vscode.RelativePattern;
+          let scanRoot: vscode.Uri;
 
-            // Remaining files in currentFiles are newly created
-            for (const [relativePath, content] of currentFiles) {
-                try {
-                    processedFiles++;
-                    progress.report({
-                        message: `Comparing files (${processedFiles}/${totalFiles})`,
-                        increment: (100 / totalFiles)
-                    });
-
-                    changedFiles.push({
-                        relativePath,
-                        path: relativePath,
-                        status: 'created',
-                        modified: content
-                    });
-                } catch (error) {
-                    console.log(`Skipping new file due to error: ${relativePath}`, error);
-                    continue;
-                }
+          if (snapshot.snapshotScope) {
+            switch (snapshot.snapshotScope.type) {
+              case 'file':
+                scanRoot = vscode.Uri.file(path.dirname(snapshot.snapshotScope.uri));
+                scanPattern = new vscode.RelativePattern(
+                  scanRoot.fsPath,
+                  path.basename(snapshot.snapshotScope.uri)
+                );
+                break;
+              case 'directory':
+                scanRoot = vscode.Uri.file(snapshot.snapshotScope.uri);
+                scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
+                break;
+              default:
+                scanRoot = workspaceFolders[0].uri;
+                scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
             }
+          } else {
+            scanRoot = workspaceFolders[0].uri;
+            scanPattern = new vscode.RelativePattern(scanRoot.fsPath, '**/*');
+          }
 
-            if (changedFiles.length === 0) {
-                await this.notificationManager.showInformationMessage('No differences found in any files.');
-                return;
-            }
+          const currentUris = await vscode.workspace.findFiles(
+            scanPattern,
+            '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
+          );
 
-            progress.report({ message: 'Opening diff view...' });
-            if (this.diffProvider) {
-                await this.diffProvider.showDiff(changedFiles, snapshotName, timestamp);
+          // Build map of current files with paths relative to scan root
+          for (const uri of currentUris) {
+            const relativePath = path.relative(scanRoot.fsPath, uri.fsPath);
+            if (!this.shouldSkipFile(relativePath)) {
+              try {
+                const content = await this.readFileContent(uri);
+                // For directory snapshots, we need to keep the paths relative to the snapshot directory
+                const adjustedPath = snapshot.snapshotScope?.type === 'directory'
+                  ? path.relative(snapshot.snapshotScope.uri, uri.fsPath)
+                  : relativePath;
+                currentFiles.set(adjustedPath, content);
+              } catch (error) {
+                console.log(`Skipping likely binary file: ${relativePath}`);
+                continue;
+              }
             }
-        } catch (error) {
-            console.error('Failed to show diff:', error);
-            await this.notificationManager.showErrorMessage('Failed to show diff view');
+          }
+
+          // For directory snapshots, the paths in snapshot files are already relative to the snapshot directory
+          const snapshotFiles = new Map(
+            snapshot.files
+              .filter(f => !this.shouldSkipFile(f.relativePath))
+              .map(f => [f.relativePath, f])
+          );
+
+          let processedFiles = 0;
+          const totalFiles = snapshotFiles.size + currentFiles.size;
+
+          // Check for modified and deleted files
+          for (const [relativePath, file] of snapshotFiles) {
+            try {
+              processedFiles++;
+              progress.report({
+                message: `Comparing files (${processedFiles}/${totalFiles})`,
+                increment: (100 / totalFiles)
+              });
+
+              const currentContent = currentFiles.get(relativePath);
+              if (currentContent === undefined) {
+                // File was deleted
+                changedFiles.push({
+                  relativePath,
+                  path: relativePath,
+                  status: 'deleted',
+                  original: file.content
+                });
+              } else if (currentContent !== file.content) {
+                // File was modified
+                changedFiles.push({
+                  relativePath,
+                  path: relativePath,
+                  status: 'modified',
+                  original: file.content,
+                  modified: currentContent
+                });
+              }
+              // Remove processed file from currentFiles map
+              currentFiles.delete(relativePath);
+            } catch (error) {
+              console.log(`Skipping file due to error: ${relativePath}`, error);
+              currentFiles.delete(relativePath);
+              continue;
+            }
+          }
+
+          // Remaining files in currentFiles are newly created
+          for (const [relativePath, content] of currentFiles) {
+            try {
+              processedFiles++;
+              progress.report({
+                message: `Comparing files (${processedFiles}/${totalFiles})`,
+                increment: (100 / totalFiles)
+              });
+
+              changedFiles.push({
+                relativePath,
+                path: relativePath,
+                status: 'created',
+                modified: content
+              });
+            } catch (error) {
+              console.log(`Skipping new file due to error: ${relativePath}`, error);
+              continue;
+            }
+          }
         }
+
+        if (changedFiles.length === 0) {
+          await this.notificationManager.showInformationMessage('No differences found in any files.');
+          return;
+        }
+
+        progress.report({ message: 'Opening diff view...' });
+        if (this.diffProvider) {
+          await this.diffProvider.showDiff(changedFiles, snapshotName, timestamp);
+        }
+      } catch (error) {
+        console.error('Failed to show diff:', error);
+        await this.notificationManager.showErrorMessage('Failed to show diff view');
+      }
     });
 }
 
@@ -1331,8 +1595,58 @@ export class SnapshotManager {
         throw new Error('No workspace folder is open');
     }
 
+    // Handle untitled files specially
+    if (file.relativePath.startsWith('_untitled/')) {
+        try {
+            // For untitled files, we need to create a new untitled document
+            const fileName = file.relativePath.replace('_untitled/', '');
+
+            console.log(`Restoring untitled file: ${fileName}`);
+            console.log(`Content length: ${file.content ? file.content.length : 0}`);
+            console.log(`Content preview: ${file.content ? file.content.substring(0, 50) : 'EMPTY'}`);
+
+            // Check if there's already an open untitled document with this name
+            let existingDocument: vscode.TextDocument | undefined;
+            for (const doc of vscode.workspace.textDocuments) {
+                if (doc.uri.scheme === 'untitled' && path.basename(doc.fileName) === fileName) {
+                    existingDocument = doc;
+                    console.log(`Found existing untitled document: ${doc.fileName}`);
+                    break;
+                }
+            }
+
+            if (existingDocument) {
+                // If the document exists, edit it
+                console.log(`Editing existing untitled document with content length: ${file.content.length}`);
+                const edit = new vscode.WorkspaceEdit();
+                const fullRange = new vscode.Range(
+                    existingDocument.lineAt(0).range.start,
+                    existingDocument.lineAt(existingDocument.lineCount - 1).range.end
+                );
+                edit.replace(existingDocument.uri, fullRange, file.content);
+                const success = await vscode.workspace.applyEdit(edit);
+                console.log(`Edit applied successfully: ${success}`);
+            } else {
+                // Otherwise create a new untitled document
+                console.log(`Creating new untitled document with content length: ${file.content.length}`);
+                const untitledDoc = await vscode.workspace.openTextDocument({ content: file.content });
+                await vscode.window.showTextDocument(untitledDoc);
+                console.log(`New untitled document created: ${untitledDoc.fileName}, content length: ${untitledDoc.getText().length}`);
+            }
+        } catch (error) {
+            console.error(`Failed to restore untitled file: ${file.relativePath}`, error);
+            throw new Error(`Failed to restore untitled file: ${file.relativePath}`);
+        }
+        return;
+    }
+
+    // Handle regular files
     const fullPath = path.join(workspaceFolders[0].uri.fsPath, file.relativePath);
     try {
+        // Ensure the directory exists
+        const dirPath = path.dirname(fullPath);
+        await vscode.workspace.fs.createDirectory(vscode.Uri.file(dirPath));
+
         await vscode.workspace.fs.writeFile(
             vscode.Uri.file(fullPath),
             Buffer.from(file.content, 'utf8')
@@ -1620,7 +1934,17 @@ export class SnapshotManager {
 
   private getCustomIgnorePatterns(): string[] {
     const config = vscode.workspace.getConfiguration('localSnapshots');
-    return config.get<string[]>('customIgnorePatterns', []);
+    const patterns = config.get<(string | { pattern: string, fromGitignore?: boolean })[]>('customIgnorePatterns', []);
+
+    // Convert any object patterns to strings
+    return patterns.map(pattern => {
+      if (typeof pattern === 'string') {
+        return pattern;
+      } else if (pattern && typeof pattern === 'object' && pattern.pattern) {
+        return pattern.pattern;
+      }
+      return '';
+    }).filter(pattern => pattern !== '');
   }
 
   private shouldRespectGitignore(): boolean {

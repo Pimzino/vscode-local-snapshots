@@ -16,6 +16,44 @@
     let settings = {};
     let settingsData = {};
 
+    // Define built-in exclusion patterns that should be displayed but not removable
+    // These match the patterns used in SnapshotManager.ts quickSkipPatterns
+    const builtInPatterns = [
+        // Images
+        { pattern: '**/*.jpg', source: 'built-in' },
+        { pattern: '**/*.jpeg', source: 'built-in' },
+        { pattern: '**/*.png', source: 'built-in' },
+        { pattern: '**/*.gif', source: 'built-in' },
+        { pattern: '**/*.ico', source: 'built-in' },
+        { pattern: '**/*.webp', source: 'built-in' },
+        { pattern: '**/*.bmp', source: 'built-in' },
+
+        // Media
+        { pattern: '**/*.mp4', source: 'built-in' },
+        { pattern: '**/*.webm', source: 'built-in' },
+        { pattern: '**/*.ogg', source: 'built-in' },
+        { pattern: '**/*.mp3', source: 'built-in' },
+        { pattern: '**/*.wav', source: 'built-in' },
+        { pattern: '**/*.flac', source: 'built-in' },
+        { pattern: '**/*.aac', source: 'built-in' },
+
+        // Documents
+        { pattern: '**/*.pdf', source: 'built-in' },
+        { pattern: '**/*.doc', source: 'built-in' },
+        { pattern: '**/*.docx', source: 'built-in' },
+        { pattern: '**/*.ppt', source: 'built-in' },
+        { pattern: '**/*.pptx', source: 'built-in' },
+        { pattern: '**/*.xls', source: 'built-in' },
+        { pattern: '**/*.xlsx', source: 'built-in' },
+
+        // Archives
+        { pattern: '**/*.zip', source: 'built-in' },
+        { pattern: '**/*.rar', source: 'built-in' },
+        { pattern: '**/*.7z', source: 'built-in' },
+        { pattern: '**/*.tar', source: 'built-in' },
+        { pattern: '**/*.gz', source: 'built-in' }
+    ];
+
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
         // Request settings from extension
@@ -676,33 +714,210 @@
         const container = document.createElement('div');
         container.className = 'setting-array';
 
-        // Current items
+        // Check if this is the exclusion list (customIgnorePatterns)
+        const isExclusionList = setting.key === 'customIgnorePatterns';
+
+        // Current items (defined early so we can use it in the header)
         const items = setting.value || [];
-        items.forEach((item, index) => {
-            container.appendChild(createArrayItem(setting, item, index));
-        });
 
-        // Add button
-        const addButton = document.createElement('button');
-        addButton.className = 'array-add';
-        addButton.innerHTML = '<span class="codicon codicon-add"></span> Add Item';
-        addButton.addEventListener('click', () => {
-            const newItems = [...items, ''];
-            vscode.postMessage({
-                command: 'updateSetting',
-                key: setting.key,
-                value: newItems
+        // For exclusion list, add a collapsible header
+        if (isExclusionList) {
+            const header = document.createElement('div');
+            header.className = 'array-header';
+
+            const toggleButton = document.createElement('button');
+            toggleButton.className = 'array-toggle';
+            toggleButton.innerHTML = '<span class="codicon codicon-chevron-right"></span>';
+            toggleButton.title = 'Expand/Collapse';
+
+            const headerText = document.createElement('span');
+            headerText.className = 'array-header-text';
+
+            // Count patterns by type
+            let builtInCount = 0;
+            let gitignoreCount = 0;
+            let userCount = 0;
+
+            // First count built-in patterns from our predefined list
+            builtInCount = builtInPatterns.length;
+
+            // Then count gitignore patterns and user patterns
+            items.forEach(item => {
+                // Check if it's a gitignore pattern object
+                if (typeof item === 'object' && item !== null && item.fromGitignore) {
+                    gitignoreCount++;
+                } else {
+                    // Get the pattern value
+                    const patternValue = typeof item === 'object' && item !== null && item.pattern ? item.pattern : item;
+
+                    // Check if it's a built-in pattern
+                    const isBuiltIn = builtInPatterns.some(bp => bp.pattern === patternValue);
+                    if (isBuiltIn) {
+                        // Don't increment builtInCount as we already counted these
+                    } else {
+                        // User pattern
+                        userCount++;
+                    }
+                }
             });
-        });
 
-        container.appendChild(addButton);
+            const totalPatterns = builtInCount + gitignoreCount + userCount;
+
+            headerText.textContent = `${totalPatterns} exclusion patterns (${builtInCount} built-in, ${gitignoreCount} from .gitignore)`;
+
+            header.appendChild(toggleButton);
+            header.appendChild(headerText);
+            container.appendChild(header);
+
+            // Create a wrapper for the items that can be collapsed
+            const itemsWrapper = document.createElement('div');
+            itemsWrapper.className = 'array-items-wrapper collapsed';
+            container.appendChild(itemsWrapper);
+
+            // Toggle collapse/expand when clicking the header
+            header.addEventListener('click', () => {
+                itemsWrapper.classList.toggle('collapsed');
+                toggleButton.querySelector('.codicon').classList.toggle('codicon-chevron-right');
+                toggleButton.querySelector('.codicon').classList.toggle('codicon-chevron-down');
+            });
+            // First add built-in patterns
+            builtInPatterns.forEach((builtInPattern, index) => {
+                itemsWrapper.appendChild(createArrayItem(setting, builtInPattern, index));
+            });
+
+            // Process user-defined patterns and gitignore patterns
+            // Track patterns we've already added to avoid duplicates
+            const addedPatterns = new Set(builtInPatterns.map(bp => bp.pattern));
+
+            // Group gitignore patterns
+            const gitignorePatterns = [];
+            const userPatterns = [];
+
+            items.forEach(item => {
+                // Get the pattern value
+                const patternValue = typeof item === 'object' && item !== null && item.pattern ? item.pattern : item;
+
+                // Check if it's a gitignore pattern object
+                if (typeof item === 'object' && item !== null && item.fromGitignore) {
+                    // Only add if not already added
+                    if (!addedPatterns.has(patternValue)) {
+                        gitignorePatterns.push(item);
+                        addedPatterns.add(patternValue);
+                    }
+                } else if (!addedPatterns.has(patternValue)) {
+                    // Regular user pattern
+                    userPatterns.push(item);
+                    addedPatterns.add(patternValue);
+                }
+            });
+
+            // Add gitignore patterns
+            gitignorePatterns.forEach((item, index) => {
+                itemsWrapper.appendChild(createArrayItem(setting, item, builtInPatterns.length + index));
+            });
+
+            // Add user-defined patterns
+            userPatterns.forEach((item, index) => {
+                itemsWrapper.appendChild(createArrayItem(
+                    setting,
+                    item,
+                    builtInPatterns.length + gitignorePatterns.length + index
+                ));
+            });
+
+            // Create a container for the Add button outside the scrollable area
+            const addButtonContainer = document.createElement('div');
+            addButtonContainer.className = 'array-add-container';
+
+            // Add button
+            const addButton = document.createElement('button');
+            addButton.className = 'array-add';
+            addButton.innerHTML = '<span class="codicon codicon-add"></span> Add Item';
+            addButton.addEventListener('click', () => {
+                const newItems = [...items, ''];
+                vscode.postMessage({
+                    command: 'updateSetting',
+                    key: setting.key,
+                    value: newItems
+                });
+
+                // Update the header text with the new count
+                // Count patterns by type
+                let builtInCount = 0;
+                let gitignoreCount = 0;
+                let userCount = 0;
+
+                // First count built-in patterns from our predefined list
+                builtInCount = builtInPatterns.length;
+
+                // Then count gitignore patterns and user patterns
+                newItems.forEach(item => {
+                    // Check if it's a gitignore pattern object
+                    if (typeof item === 'object' && item !== null && item.fromGitignore) {
+                        gitignoreCount++;
+                    } else {
+                        // Get the pattern value
+                        const patternValue = typeof item === 'object' && item !== null && item.pattern ? item.pattern : item;
+
+                        // Check if it's a built-in pattern
+                        const isBuiltIn = builtInPatterns.some(bp => bp.pattern === patternValue);
+                        if (isBuiltIn) {
+                            // Don't increment builtInCount as we already counted these
+                        } else {
+                            // User pattern
+                            userCount++;
+                        }
+                    }
+                });
+
+                const updatedTotalPatterns = builtInCount + gitignoreCount + userCount;
+
+                headerText.textContent = `${updatedTotalPatterns} exclusion patterns (${builtInCount} built-in, ${gitignoreCount} from .gitignore)`;
+
+                // Expand the list when adding a new item
+                if (itemsWrapper.classList.contains('collapsed')) {
+                    itemsWrapper.classList.remove('collapsed');
+                    toggleButton.querySelector('.codicon').classList.remove('codicon-chevron-right');
+                    toggleButton.querySelector('.codicon').classList.add('codicon-chevron-down');
+                }
+
+                // Scroll to the bottom to show the new item
+                setTimeout(() => {
+                    itemsWrapper.scrollTop = itemsWrapper.scrollHeight;
+                }, 100);
+            });
+
+            addButtonContainer.appendChild(addButton);
+            container.appendChild(addButtonContainer);
+        } else {
+            // Regular array handling (non-exclusion list)
+            items.forEach((item, index) => {
+                container.appendChild(createArrayItem(setting, item, index));
+            });
+
+            // Add button
+            const addButton = document.createElement('button');
+            addButton.className = 'array-add';
+            addButton.innerHTML = '<span class="codicon codicon-add"></span> Add Item';
+            addButton.addEventListener('click', () => {
+                const newItems = [...items, ''];
+                vscode.postMessage({
+                    command: 'updateSetting',
+                    key: setting.key,
+                    value: newItems
+                });
+            });
+
+            container.appendChild(addButton);
+        }
+
         return container;
     }
 
     /**
      * Create a single array item control
      * @param {Object} setting - The parent setting
-     * @param {string} value - The item value
+     * @param {string|Object} value - The item value or object with pattern and source
      * @param {number} index - The item index
      * @returns {HTMLElement} - The array item element
      */
@@ -710,32 +925,147 @@
         const item = document.createElement('div');
         item.className = 'array-item';
 
+        // Handle different types of exclusion patterns
+        let patternValue = value;
+        let patternSource = null;
+
+        // Check if this is the exclusion list
+        const isExclusionList = setting.key === 'customIgnorePatterns';
+
+        // Check if the value is an object with pattern and source
+        if (typeof value === 'object' && value !== null) {
+            console.log('Pattern object:', JSON.stringify(value));
+
+            if (value.pattern) {
+                patternValue = value.pattern;
+                patternSource = value.source;
+            }
+
+            // Check if this is from gitignore
+            if (value.fromGitignore) {
+                console.log('Found gitignore pattern:', JSON.stringify(value));
+                patternValue = value.pattern || value;
+                patternSource = 'gitignore';
+            }
+        }
+
+        // For string values, check if it matches a built-in pattern
+        if (isExclusionList && typeof patternValue === 'string' && !patternSource) {
+            // Check for exact match with built-in patterns
+            const builtInPattern = builtInPatterns.find(p => p.pattern === patternValue);
+            if (builtInPattern) {
+                patternSource = 'built-in';
+                // Add source to the value object to ensure it's preserved
+                if (typeof value === 'string') {
+                    value = { pattern: value, source: 'built-in' };
+                }
+            }
+            // If it's not a built-in pattern and not empty, it's a user pattern
+            // (we don't set any source for user patterns)
+        }
+
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'setting-input array-item-input';
-        input.value = value;
-        input.addEventListener('change', () => {
-            const newItems = [...(setting.value || [])];
-            newItems[index] = input.value;
-            vscode.postMessage({
-                command: 'updateSetting',
-                key: setting.key,
-                value: newItems
+        input.value = patternValue;
+
+        // Disable editing for built-in and gitignore patterns
+        if (patternSource === 'built-in' || patternSource === 'gitignore') {
+            input.disabled = true;
+            input.title = patternSource === 'built-in'
+                ? 'Built-in exclusion pattern (cannot be modified)'
+                : 'Pattern from .gitignore (edit the .gitignore file to modify)';
+            item.classList.add('system-pattern');
+        } else {
+            input.addEventListener('change', () => {
+                const newItems = [...(setting.value || [])];
+                newItems[index] = input.value;
+                vscode.postMessage({
+                    command: 'updateSetting',
+                    key: setting.key,
+                    value: newItems
+                });
             });
-        });
+        }
+
+        // Add source badge if applicable
+        if (patternSource) {
+            console.log(`Creating badge for pattern: ${patternValue}, source: ${patternSource}`);
+            const sourceBadge = document.createElement('span');
+            sourceBadge.className = `pattern-source ${patternSource}`;
+            sourceBadge.textContent = patternSource === 'built-in' ? 'built-in' : '.gitignore';
+            sourceBadge.title = patternSource === 'built-in'
+                ? 'This pattern is built into the extension and cannot be removed'
+                : 'This pattern comes from your .gitignore file';
+            item.appendChild(sourceBadge);
+        } else {
+            console.log(`No badge for pattern: ${patternValue}, source not found`);
+        }
 
         const removeButton = document.createElement('button');
         removeButton.className = 'array-item-remove';
         removeButton.innerHTML = '<span class="codicon codicon-trash"></span>';
-        removeButton.addEventListener('click', () => {
-            const newItems = [...(setting.value || [])];
-            newItems.splice(index, 1);
-            vscode.postMessage({
-                command: 'updateSetting',
-                key: setting.key,
-                value: newItems
+
+        // Disable remove button for built-in and gitignore patterns
+        if (patternSource === 'built-in' || patternSource === 'gitignore') {
+            removeButton.disabled = true;
+            removeButton.classList.add('disabled');
+            removeButton.title = patternSource === 'built-in'
+                ? 'Built-in patterns cannot be removed'
+                : 'Edit .gitignore file to remove this pattern';
+        } else {
+            removeButton.addEventListener('click', () => {
+                const newItems = [...(setting.value || [])];
+                newItems.splice(index, 1);
+                vscode.postMessage({
+                    command: 'updateSetting',
+                    key: setting.key,
+                    value: newItems
+                });
+
+                // Update the header text if this is the exclusion list
+                if (setting.key === 'customIgnorePatterns') {
+                    // Find the header text element in the parent container
+                    const settingItem = item.closest('.setting-item');
+                    if (settingItem) {
+                        const headerText = settingItem.querySelector('.array-header-text');
+                        if (headerText) {
+                            // Count patterns by type
+                            let builtInCount = 0;
+                            let gitignoreCount = 0;
+                            let userCount = 0;
+
+                            // First count built-in patterns from our predefined list
+                            builtInCount = builtInPatterns.length;
+
+                            // Then count gitignore patterns and user patterns
+                            newItems.forEach(item => {
+                                // Check if it's a gitignore pattern object
+                                if (typeof item === 'object' && item !== null && item.fromGitignore) {
+                                    gitignoreCount++;
+                                } else {
+                                    // Get the pattern value
+                                    const patternValue = typeof item === 'object' && item !== null && item.pattern ? item.pattern : item;
+
+                                    // Check if it's a built-in pattern
+                                    const isBuiltIn = builtInPatterns.some(bp => bp.pattern === patternValue);
+                                    if (isBuiltIn) {
+                                        // Don't increment builtInCount as we already counted these
+                                    } else {
+                                        // User pattern
+                                        userCount++;
+                                    }
+                                }
+                            });
+
+                            const updatedTotalPatterns = builtInCount + gitignoreCount + userCount;
+
+                            headerText.textContent = `${updatedTotalPatterns} exclusion patterns (${builtInCount} built-in, ${gitignoreCount} from .gitignore)`;
+                        }
+                    }
+                }
             });
-        });
+        }
 
         item.appendChild(input);
         item.appendChild(removeButton);

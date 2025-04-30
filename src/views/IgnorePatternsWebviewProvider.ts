@@ -60,10 +60,10 @@ export class IgnorePatternsWebviewProvider {
         // Remove all patterns that were added from this .gitignore
         const config = vscode.workspace.getConfiguration('localSnapshots');
         const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
-        
+
         const updatedPatterns = currentPatterns.filter(pattern => !this.syncedGitignorePatterns.has(pattern));
         this.syncedGitignorePatterns.clear();
-        
+
         await config.update(
             'customIgnorePatterns',
             updatedPatterns,
@@ -79,9 +79,9 @@ export class IgnorePatternsWebviewProvider {
         return content
             .split('\n')
             .map(line => line.trim())
-            .filter(line => 
-                line && 
-                !line.startsWith('#') && 
+            .filter(line =>
+                line &&
+                !line.startsWith('#') &&
                 !line.startsWith('!') && // Exclude negation patterns
                 !line.startsWith('/') // Exclude root-specific patterns
             );
@@ -89,17 +89,30 @@ export class IgnorePatternsWebviewProvider {
 
     private async syncGitignorePatterns(newPatterns: string[], gitignoreUri: vscode.Uri) {
         const config = vscode.workspace.getConfiguration('localSnapshots');
-        const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
-        
-        // Remove old synced patterns
-        const manualPatterns = currentPatterns.filter(pattern => !this.syncedGitignorePatterns.has(pattern));
-        
+        const currentPatterns = config.get<(string | { pattern: string, fromGitignore: boolean })[]>('customIgnorePatterns', []);
+
+        // Remove old synced patterns - both string patterns and object patterns with fromGitignore=true
+        const manualPatterns = currentPatterns.filter(pattern => {
+            if (typeof pattern === 'string') {
+                return !this.syncedGitignorePatterns.has(pattern);
+            } else if (typeof pattern === 'object' && pattern !== null) {
+                return !pattern.fromGitignore;
+            }
+            return true;
+        });
+
         // Update the set of synced patterns
         this.syncedGitignorePatterns = new Set(newPatterns);
-        
+
+        // Convert gitignore patterns to objects with fromGitignore flag
+        const gitignorePatternObjects = newPatterns.map(pattern => ({
+            pattern,
+            fromGitignore: true
+        }));
+
         // Combine manual patterns with new gitignore patterns
-        const updatedPatterns = [...manualPatterns, ...newPatterns];
-        
+        const updatedPatterns = [...manualPatterns, ...gitignorePatternObjects];
+
         await config.update(
             'customIgnorePatterns',
             updatedPatterns,
@@ -227,7 +240,7 @@ export class IgnorePatternsWebviewProvider {
     private async addPattern(pattern: string) {
         const config = vscode.workspace.getConfiguration('localSnapshots');
         const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
-        
+
         if (!currentPatterns.includes(pattern)) {
             await config.update(
                 'customIgnorePatterns',
@@ -241,7 +254,7 @@ export class IgnorePatternsWebviewProvider {
     private async removePattern(pattern: string) {
         const config = vscode.workspace.getConfiguration('localSnapshots');
         const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
-        
+
         await config.update(
             'customIgnorePatterns',
             currentPatterns.filter(p => p !== pattern),
@@ -313,13 +326,32 @@ export class IgnorePatternsWebviewProvider {
         if (!this.panel) return;
 
         const config = vscode.workspace.getConfiguration('localSnapshots');
-        const patterns = config.get<string[]>('customIgnorePatterns', []);
+        const patterns = config.get<(string | { pattern: string, fromGitignore: boolean })[]>('customIgnorePatterns', []);
+
+        console.log('Current patterns from config:', JSON.stringify(patterns, null, 2));
+        console.log('Synced gitignore patterns:', Array.from(this.syncedGitignorePatterns));
 
         // Convert patterns to objects with source information
-        const patternsWithSource = patterns.map(pattern => ({
-            pattern,
-            fromGitignore: this.syncedGitignorePatterns.has(pattern)
-        }));
+        const patternsWithSource = patterns.map(pattern => {
+            // If it's already an object with fromGitignore, use that
+            if (typeof pattern === 'object' && pattern !== null && pattern.fromGitignore) {
+                console.log(`Pattern is already marked as fromGitignore:`, pattern);
+                return pattern;
+            }
+
+            // If it's a string, check if it's in our synced gitignore patterns
+            const patternStr = typeof pattern === 'string' ? pattern : pattern.pattern;
+            const isFromGitignore = this.syncedGitignorePatterns.has(patternStr);
+
+            console.log(`Pattern: ${patternStr}, isFromGitignore: ${isFromGitignore}`);
+
+            return {
+                pattern: patternStr,
+                fromGitignore: isFromGitignore
+            };
+        });
+
+        console.log('Patterns with source:', JSON.stringify(patternsWithSource, null, 2));
 
         this.panel.webview.postMessage({
             command: 'currentPatterns',
@@ -335,4 +367,4 @@ export class IgnorePatternsWebviewProvider {
         }
         return text;
     }
-} 
+}

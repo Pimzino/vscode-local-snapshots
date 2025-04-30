@@ -2,6 +2,16 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.14] - April 29, 2025
+
+### 🐛 Bug Fixes
+
+- Fixed critical issue with pre-save snapshots:
+  - Fixed restore functionality to only affect the specific file in pre-save snapshots
+  - Improved diff view to only show the specific file that was snapshotted
+  - Added proper handling of untitled files in pre-save snapshots
+  - Enhanced logging and error handling for untitled file operations
+
 ## [0.0.13] - 2025-04-24
 
 ### 🐛 Bug Fixes
