@@ -462,8 +462,9 @@ body {
     max-height: 300px; /* Limit height and enable scrolling */
     opacity: 1;
     transition: max-height 0.3s ease, opacity 0.2s ease, margin 0.3s ease;
-    scrollbar-width: thin; /* For Firefox */
-    scrollbar-color: transparent transparent; /* For Firefox */
+    /* Remove Firefox-specific properties that cause lint errors */
+    /* scrollbar-width: thin; */
+    /* scrollbar-color: transparent transparent; */
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
@@ -803,3 +804,4 @@ body {
         border-bottom-color: var(--vscode-textLink-foreground);
     }
 }
+

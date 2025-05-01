@@ -17,9 +17,9 @@
 	text-align: center;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
-	user-select: none;
 	-webkit-user-select: none;
 	-ms-user-select: none;
+	user-select: none;
 }
 
 /*---------------------
@@ -597,3 +597,4 @@
 .codicon-mic-filled:before { content: "\ec1c" }
 .codicon-git-fetch:before { content: "\ec1d" }
 .codicon-copilot:before { content: "\ec1e" }
+

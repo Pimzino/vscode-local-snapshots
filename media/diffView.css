@@ -101,6 +101,7 @@ body {
     border-bottom: 1px solid var(--vscode-widget-border);
     cursor: pointer;
     transition: all var(--transition-duration) ease;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -243,6 +244,7 @@ body {
     color: var(--vscode-editorLineNumber-foreground);
     text-align: right;
     padding: 0 var(--spacing-sm);
+    -webkit-user-select: none;
     user-select: none;
     opacity: 0.7;
 }
@@ -260,6 +262,7 @@ body {
 .diff-line .diff-line-numbers {
     display: grid;
     grid-template-columns: repeat(2, minmax(50px, auto));
+    -webkit-user-select: none;
     user-select: none;
     background: var(--vscode-editor-lineHighlightBackground);
     border-right: 1px solid var(--vscode-widget-border);
@@ -307,12 +310,14 @@ body {
     min-width: 3em;
     text-align: right;
     padding-right: 1em;
+    -webkit-user-select: none;
     user-select: none;
 }
 
 .diff-line-horizontal .diff-line-prefix {
     width: 1em;
     font-weight: bold;
+    -webkit-user-select: none;
     user-select: none;
     margin-right: 0.5em;
 }
@@ -435,6 +440,7 @@ body {
     min-width: 4em;
     background-color: var(--vscode-editor-background);
     border-right: 1px solid var(--vscode-panel-border);
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -690,10 +696,10 @@ body {
 
 .file-status.created {
     color: var(--vscode-gitDecoration-addedResourceForeground);
-    background-color: color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground) 10%, transparent);
+    background-color: rgba(var(--vscode-gitDecoration-addedResourceForeground, #81c995), 0.1);
 }
 
 .file-status.deleted {
     color: var(--vscode-gitDecoration-deletedResourceForeground);
-    background-color: color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground) 10%, transparent);
+    background-color: rgba(var(--vscode-gitDecoration-deletedResourceForeground, #f14c4c), 0.1);
 }
