@@ -7,6 +7,7 @@ All notable changes to the "Local Snapshots" extension will be documented in thi
 ### 🐛 Bug Fixes
 
 - Fixed issue with manual (right-click) file snapshot where diff view was unable to read the file due to incorrect path construction.
+- Added 'Skip Unchanged Snapshots' to our custom settings page as it wasnt added when the custom extension settings page was created.
 
 ## [0.0.14] - 2025-04-29
 
