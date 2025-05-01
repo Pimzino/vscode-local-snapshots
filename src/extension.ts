@@ -321,16 +321,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Add all disposables to context
 	context.subscriptions.push(webviewDisposable, ...commandDisposables);
-
-	// Show the webview
-	setTimeout(async () => {
-		try {
-			await vscode.commands.executeCommand('workbench.view.extension.local-snapshots-sidebar');
-			console.log('View container shown');
-		} catch (error) {
-			console.error('Failed to show view container:', error);
-		}
-	}, 500);
 }
 
 export function deactivate() {}
