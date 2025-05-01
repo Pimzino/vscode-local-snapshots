@@ -7,6 +7,7 @@ All notable changes to the "Local Snapshots" extension will be documented in thi
 ### 🐛 Bug Fixes
 
 - Fixed a few accessibility issues with the extensions views.
+- Stopped the extension from automatically opening the sidebar on startup and changing to the Local Snapshots view automatically.
 
 ## [0.0.15] - 2025-05-01
 
