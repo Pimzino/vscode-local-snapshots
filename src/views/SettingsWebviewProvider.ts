@@ -514,6 +514,12 @@ export class SettingsWebviewProvider {
                 category: 'General',
                 dependsOn: 'enableTimedSnapshots'
             },
+            'skipUnchangedSnapshots': {
+                type: 'boolean',
+                default: false,
+                description: 'Skip creating snapshots when no files have changed',
+                category: 'General'
+            },
             'enableDeleteProtection': {
                 type: 'boolean',
                 default: true,
@@ -742,3 +748,4 @@ export class SettingsWebviewProvider {
         }
     }
 }
+
