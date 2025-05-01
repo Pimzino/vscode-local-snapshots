@@ -1704,21 +1704,46 @@ export class SnapshotManager {
 
         try {
             progress.report({ message: 'Reading file content...' });
-            const content = await this.readFileContent(uri);
-            const fileName = path.basename(uri.fsPath);
+
+            // Handle untitled files specially
+            let content: string;
+            let relativePath: string;
+
+            if (this.isUntitledFile(uri)) {
+                // For untitled files, get the document directly
+                const document = vscode.workspace.textDocuments.find(doc =>
+                    doc.uri.toString() === uri.toString());
+
+                if (!document) {
+                    throw new Error('Could not find the untitled document');
+                }
+
+                content = document.getText();
+                relativePath = this.getUntitledFilePath(document);
+                console.log(`Taking snapshot of untitled file: ${relativePath}`);
+            } else {
+                // For regular files
+                content = await this.readFileContent(uri);
+                relativePath = this.getRelativePath(uri);
+            }
+
+            const fileName = this.isUntitledFile(uri) ?
+                relativePath.replace('_untitled/', '') :
+                path.basename(uri.fsPath);
+
             const timestamp = this.formatTimestamp();
 
             const snapshot: Snapshot = {
-              name: `${fileName} - ${timestamp}`,
-              timestamp: Date.now(),
-              files: [{
-              content,
-              relativePath
-              }],
-              snapshotScope: {
-              type: 'file',
-              uri: uri.fsPath
-              }
+                name: `${fileName} - ${timestamp}`,
+                timestamp: Date.now(),
+                files: [{
+                    content,
+                    relativePath
+                }],
+                snapshotScope: {
+                    type: 'file',
+                    uri: uri.toString() // Store as string to preserve scheme
+                }
             };
 
 
@@ -1732,8 +1757,39 @@ export class SnapshotManager {
             throw new Error('Failed to read file contents');
         }
     });
-}
+  }
 
+  private getRelativePath(uri: vscode.Uri): string {
+    // Special handling for untitled files
+    if (this.isUntitledFile(uri)) {
+        // Find the document for this untitled URI
+        const document = vscode.workspace.textDocuments.find(doc =>
+            doc.uri.toString() === uri.toString());
+
+        if (document) {
+            return this.getUntitledFilePath(document);
+        } else {
+            // Fallback if document not found
+            return `_untitled/${path.basename(uri.path || 'untitled')}`;
+        }
+    }
+
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        return path.basename(uri.fsPath);
+    }
+
+    // Find the workspace folder that contains this file
+    const workspaceFolder = workspaceFolders.find(folder =>
+        uri.fsPath.startsWith(folder.uri.fsPath)
+    );
+
+    if (workspaceFolder) {
+        return path.relative(workspaceFolder.uri.fsPath, uri.fsPath);
+    }
+
+    return path.basename(uri.fsPath);
+  }
 
   async takeDirectorySnapshot(uri: vscode.Uri): Promise<void> {
     return vscode.window.withProgress({
@@ -1797,7 +1853,7 @@ export class SnapshotManager {
         await this.addSnapshot(snapshot);
         this.webviewProvider?.refreshList();
     });
-}
+  }
 
 
   dispose() {

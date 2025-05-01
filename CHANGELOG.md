@@ -2,7 +2,13 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
-## [0.0.14] - April 29, 2025
+## [0.0.15] - 2025-05-01
+
+### 🐛 Bug Fixes
+
+- Fixed issue with manual (right-click) file snapshot where diff view was unable to read the file due to incorrect path construction.
+
+## [0.0.14] - 2025-04-29
 
 ### 🐛 Bug Fixes
 
