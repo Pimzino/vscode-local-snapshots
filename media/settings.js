@@ -661,6 +661,9 @@
      * @returns {HTMLElement} - The control element
      */
     function createTextControl(setting) {
+        const container = document.createElement('div');
+        container.className = 'setting-input-container';
+
         const input = document.createElement('input');
         input.type = 'text';
         input.className = 'setting-input';
@@ -674,7 +677,27 @@
             });
         });
 
-        return input;
+        container.appendChild(input);
+
+        // Add color picker for color settings
+        if (setting.key.toLowerCase().includes('color')) {
+            // Check if the value is a valid hex color
+            const isValidColor = /^#[0-9A-Fa-f]{6}$/.test(input.value);
+
+            if (isValidColor && window.ColorPickerComponent) {
+                // Add color picker component
+                window.ColorPickerComponent.create(input, (color) => {
+                    // This will be called when the color changes
+                    vscode.postMessage({
+                        command: 'updateSetting',
+                        key: setting.key,
+                        value: color
+                    });
+                }, false); // false = don't update in real-time, only on complete
+            }
+        }
+
+        return container;
     }
 
     /**

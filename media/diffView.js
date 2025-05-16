@@ -26,6 +26,8 @@
             this.characterLevelDiffEnabled = true; // Default to enabled
             /** @type {string} */
             this.characterDiffHighlightColor = '#FFD700'; // Default to gold color
+            /** @type {number | null} */
+            this.colorUpdateTimeout = null;
             /** @type {HTMLElement | null} */
             this.filesContainer = document.getElementById('files-list');
             /** @type {HTMLTemplateElement | null} */
@@ -168,11 +170,9 @@
                 this.applyCustomHighlightColor();
 
                 // Send message to extension to update the setting
-                vscode.postMessage({
-                    command: 'updateCharacterDiffHighlightColor',
-                    color: color
-                });
-            });
+                // We'll throttle this to avoid too many updates
+                this.debounceUpdateColorSetting(color);
+            }, true); // true = enable real-time updates
 
             // Create the color picker element
             const colorPickerElement = this.colorPicker.create();
@@ -217,6 +217,36 @@
                 .char-added { background-color: ${this.characterDiffHighlightColor} !important; }
                 .char-removed { background-color: ${this.characterDiffHighlightColor} !important; }
             `;
+
+            // Also update any existing character-level diff spans
+            const charAddedSpans = document.querySelectorAll('.char-added');
+            const charRemovedSpans = document.querySelectorAll('.char-removed');
+
+            charAddedSpans.forEach(span => {
+                span.style.backgroundColor = this.characterDiffHighlightColor;
+            });
+
+            charRemovedSpans.forEach(span => {
+                span.style.backgroundColor = this.characterDiffHighlightColor;
+            });
+        }
+
+        /**
+         * Debounces the color setting update to avoid too many updates
+         * @param {string} color - The color to set
+         */
+        debounceUpdateColorSetting(color) {
+            if (this.colorUpdateTimeout) {
+                clearTimeout(this.colorUpdateTimeout);
+            }
+
+            this.colorUpdateTimeout = setTimeout(() => {
+                vscode.postMessage({
+                    command: 'updateCharacterDiffHighlightColor',
+                    color: color
+                });
+                this.colorUpdateTimeout = null;
+            }, 300); // 300ms debounce time
         }
 
         initializeSearch() {

@@ -10,14 +10,17 @@ class ColorPicker {
     /**
      * @param {string} initialColor - Initial color in hex format (e.g., #FFD700)
      * @param {(color: string) => void} onChange - Callback when color changes
+     * @param {boolean} realTimeUpdates - Whether to update in real-time during color selection
      */
-    constructor(initialColor, onChange) {
+    constructor(initialColor, onChange, realTimeUpdates = true) {
         this.color = this.hexToHsl(initialColor);
         this.onChange = onChange;
         this.element = null;
         this.isOpen = false;
         this.dragging = false;
         this.hueSliderDragging = false;
+        this.realTimeUpdates = realTimeUpdates;
+        this.lastUpdateTime = 0;
     }
 
     /**
@@ -245,8 +248,12 @@ class ColorPicker {
             hexInput.value = this.hslToHex(this.color);
         }
 
-        // Call onChange callback
-        this.onChange(this.hslToHex(this.color));
+        // Call onChange callback with throttling for real-time updates
+        const currentTime = Date.now();
+        if (this.realTimeUpdates || currentTime - this.lastUpdateTime > 100) {
+            this.onChange(this.hslToHex(this.color));
+            this.lastUpdateTime = currentTime;
+        }
     }
 
     /**
@@ -295,8 +302,12 @@ class ColorPicker {
             hexInput.value = this.hslToHex(this.color);
         }
 
-        // Call onChange callback
-        this.onChange(this.hslToHex(this.color));
+        // Call onChange callback with throttling for real-time updates
+        const currentTime = Date.now();
+        if (this.realTimeUpdates || currentTime - this.lastUpdateTime > 100) {
+            this.onChange(this.hslToHex(this.color));
+            this.lastUpdateTime = currentTime;
+        }
     }
 
     /**

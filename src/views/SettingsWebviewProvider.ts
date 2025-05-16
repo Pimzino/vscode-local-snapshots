@@ -634,8 +634,17 @@ export class SettingsWebviewProvider {
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.extensionUri, 'media', 'settings.js')
         );
+        const colorPickerScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'colorPicker.js')
+        );
+        const colorPickerComponentScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'colorPickerComponent.js')
+        );
         const styleUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.extensionUri, 'media', 'settings.css')
+        );
+        const diffViewStyleUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'diffView.css')
         );
         const codiconsUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.extensionUri, 'media', 'codicons', 'codicon.css')
@@ -659,6 +668,7 @@ export class SettingsWebviewProvider {
                 }
             </style>
             <link href="${styleUri}" rel="stylesheet">
+            <link href="${diffViewStyleUri}" rel="stylesheet">
             <link href="${codiconsUri}" rel="stylesheet">
             <title>Local Snapshots Settings</title>
         </head>
@@ -732,6 +742,8 @@ export class SettingsWebviewProvider {
                 </div>
             </div>
 
+            <script nonce="${nonce}" src="${colorPickerScriptUri}"></script>
+            <script nonce="${nonce}" src="${colorPickerComponentScriptUri}"></script>
             <script nonce="${nonce}" src="${scriptUri}"></script>
         </body>
         </html>`;
