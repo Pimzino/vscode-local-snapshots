@@ -56,6 +56,10 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOM content loaded');
+        console.log('ColorPicker available:', !!window.ColorPicker);
+        console.log('ColorPickerComponent available:', !!window.ColorPickerComponent);
+
         // Request settings from extension
         vscode.postMessage({ command: 'getSettings' });
 
@@ -684,16 +688,65 @@
             // Check if the value is a valid hex color
             const isValidColor = /^#[0-9A-Fa-f]{6}$/.test(input.value);
 
-            if (isValidColor && window.ColorPickerComponent) {
-                // Add color picker component
-                window.ColorPickerComponent.create(input, (color) => {
-                    // This will be called when the color changes
+            console.log(`Color setting detected: ${setting.key}, value: ${input.value}, isValidColor: ${isValidColor}`);
+
+            if (isValidColor) {
+                // Create a color preview button
+                const colorButton = document.createElement('button');
+                colorButton.className = 'color-preview-button';
+                colorButton.style.backgroundColor = input.value;
+                colorButton.setAttribute('title', 'Pick a color');
+                colorButton.innerHTML = '<span class="codicon codicon-symbol-color"></span>';
+
+                // Add the button to the container
+                container.appendChild(colorButton);
+
+                // Create a color input (native HTML5 color picker)
+                const colorInput = document.createElement('input');
+                colorInput.type = 'color';
+                colorInput.className = 'color-input';
+                colorInput.value = input.value;
+                colorInput.style.opacity = '0';
+                colorInput.style.position = 'absolute';
+                colorInput.style.pointerEvents = 'none';
+                container.appendChild(colorInput);
+
+                // When the button is clicked, trigger the color input
+                colorButton.addEventListener('click', () => {
+                    colorInput.style.opacity = '1';
+                    colorInput.style.pointerEvents = 'auto';
+                    colorInput.click();
+                    setTimeout(() => {
+                        colorInput.style.opacity = '0';
+                        colorInput.style.pointerEvents = 'none';
+                    }, 100);
+                });
+
+                // When the color changes, update the text input and button
+                colorInput.addEventListener('input', () => {
+                    input.value = colorInput.value;
+                    colorButton.style.backgroundColor = colorInput.value;
+                });
+
+                // When the color is selected, update the setting
+                colorInput.addEventListener('change', () => {
+                    console.log(`Color changed to: ${colorInput.value}`);
+                    input.value = colorInput.value;
+                    colorButton.style.backgroundColor = colorInput.value;
                     vscode.postMessage({
                         command: 'updateSetting',
                         key: setting.key,
-                        value: color
+                        value: colorInput.value
                     });
-                }, false); // false = don't update in real-time, only on complete
+                });
+
+                // When the text input changes, update the color button
+                input.addEventListener('input', () => {
+                    if (/^#[0-9A-Fa-f]{6}$/.test(input.value)) {
+                        colorButton.style.backgroundColor = input.value;
+                        colorInput.value = input.value;
+                    }
+                });
             }
         }
 

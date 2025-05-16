@@ -342,6 +342,7 @@ body {
     align-items: center;
     gap: var(--spacing-sm);
     max-width: 300px;
+    position: relative;
 }
 
 .setting-input-container .setting-input {
@@ -367,6 +368,20 @@ body {
 .setting-input-container .color-preview-button:hover {
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Native color input */
+.setting-input-container .color-input {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 28px;
+    height: 28px;
+    border: none;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    z-index: -1;
 }
 
 /* Checkbox styles */
