@@ -599,6 +599,24 @@ export class SettingsWebviewProvider {
                 description: 'Enable text wrapping in diff view. Useful for prose and markdown files with long paragraphs.',
                 category: 'Display'
             },
+            'enableLineLevelDiff': {
+                type: 'boolean',
+                default: true,
+                description: 'Enable line-level highlighting in diff view to show added and removed lines. Disable to show only character-level differences.',
+                category: 'Display'
+            },
+            'enableCharacterLevelDiff': {
+                type: 'boolean',
+                default: true,
+                description: 'Enable character-level highlighting in diff view to better identify specific changes within lines. Especially useful for prose and markdown files.',
+                category: 'Display'
+            },
+            'characterDiffHighlightColor': {
+                type: 'string',
+                default: '#FFD700',
+                description: 'Color used for highlighting character-level differences in the diff view. Use a color that provides good contrast against both added and removed backgrounds.',
+                category: 'Display'
+            },
 
             // API Server Settings
             'enableApiServer': {
@@ -622,8 +640,17 @@ export class SettingsWebviewProvider {
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.extensionUri, 'media', 'settings.js')
         );
+        const colorPickerScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'colorPicker.js')
+        );
+        const colorPickerComponentScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'colorPickerComponent.js')
+        );
         const styleUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.extensionUri, 'media', 'settings.css')
+        );
+        const diffViewStyleUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'diffView.css')
         );
         const codiconsUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.extensionUri, 'media', 'codicons', 'codicon.css')
@@ -639,7 +666,7 @@ export class SettingsWebviewProvider {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
             <style>
                 @font-face {
                     font-family: "codicon";
@@ -647,6 +674,7 @@ export class SettingsWebviewProvider {
                 }
             </style>
             <link href="${styleUri}" rel="stylesheet">
+            <link href="${diffViewStyleUri}" rel="stylesheet">
             <link href="${codiconsUri}" rel="stylesheet">
             <title>Local Snapshots Settings</title>
         </head>
@@ -720,6 +748,8 @@ export class SettingsWebviewProvider {
                 </div>
             </div>
 
+            <script nonce="${nonce}" src="${colorPickerScriptUri}"></script>
+            <script nonce="${nonce}" src="${colorPickerComponentScriptUri}"></script>
             <script nonce="${nonce}" src="${scriptUri}"></script>
         </body>
         </html>`;

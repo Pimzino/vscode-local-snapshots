@@ -33,6 +33,9 @@ export class SnapshotDiffWebviewProvider {
         const config = vscode.workspace.getConfiguration('localSnapshots');
         const diffViewStyle = config.get('diffViewStyle', 'side-by-side');
         const enableTextWrapping = config.get('enableTextWrapping', false);
+        const enableLineLevelDiff = config.get('enableLineLevelDiff', true);
+        const enableCharacterLevelDiff = config.get('enableCharacterLevelDiff', true);
+        const characterDiffHighlightColor = config.get('characterDiffHighlightColor', '#FFD700');
 
         // If we already have a panel, show it
         if (this._panel) {
@@ -81,6 +84,30 @@ export class SnapshotDiffWebviewProvider {
                             await this.notificationManager.showErrorMessage(`Failed to update text wrapping setting: ${error}`);
                         }
                         break;
+                    case 'toggleLineLevelDiff':
+                        try {
+                            // Update the user setting
+                            await vscode.workspace.getConfiguration('localSnapshots').update(
+                                'enableLineLevelDiff',
+                                message.enabled,
+                                vscode.ConfigurationTarget.Global
+                            );
+                        } catch (error) {
+                            await this.notificationManager.showErrorMessage(`Failed to update line-level diff setting: ${error}`);
+                        }
+                        break;
+                    case 'updateCharacterDiffHighlightColor':
+                        try {
+                            // Update the user's color setting
+                            await vscode.workspace.getConfiguration('localSnapshots').update(
+                                'characterDiffHighlightColor',
+                                message.color,
+                                vscode.ConfigurationTarget.Global
+                            );
+                        } catch (error) {
+                            await this.notificationManager.showErrorMessage(`Failed to update highlight color setting: ${error}`);
+                        }
+                        break;
                 }
             });
 
@@ -102,13 +129,20 @@ export class SnapshotDiffWebviewProvider {
             snapshotName,
             files: diffData,
             diffViewStyle,
-            enableTextWrapping
+            enableTextWrapping,
+            enableLineLevelDiff,
+            enableCharacterLevelDiff,
+            characterDiffHighlightColor
         });
     }
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'media', 'diffView.js')
+        );
+
+        const colorPickerScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'colorPicker.js')
         );
 
         const styleUri = webview.asWebviewUri(
@@ -213,6 +247,7 @@ export class SnapshotDiffWebviewProvider {
                 </div>
             </template>
         </div>
+        <script nonce="${nonce}" src="${colorPickerScriptUri}"></script>
         <script nonce="${nonce}" src="${scriptUri}"></script>
     </body>
     </html>`;
