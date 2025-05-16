@@ -55,6 +55,8 @@
             this.collapseAllBtn = document.querySelector('.collapse-all');
             /** @type {HTMLElement | null} */
             this.restoreAllBtn = document.querySelector('.restore-all');
+            /** @type {ColorPicker | null} */
+            this.colorPicker = null;
 
             if (!this.container || !this.filesContainer || !this.fileTemplate) {
                 console.error('Required DOM elements not found');
@@ -72,6 +74,9 @@
 
             // Create text wrap toggle button
             this.createTextWrapToggle();
+
+            // Create color picker
+            this.createColorPicker();
 
             window.addEventListener('message', event => {
                 const message = event.data;
@@ -136,6 +141,41 @@
 
             // Add the button to the controls
             controlsRight.appendChild(textWrapToggle);
+        }
+
+        /**
+         * Creates the color picker in the global controls
+         */
+        createColorPicker() {
+            if (!this.container || !window.ColorPicker) {
+                return;
+            }
+
+            const controlsRight = this.container.querySelector('.controls-right');
+            if (!controlsRight) {
+                return;
+            }
+
+            // Create the color picker
+            this.colorPicker = new window.ColorPicker(this.characterDiffHighlightColor, (color) => {
+                // Update the color
+                this.characterDiffHighlightColor = color;
+
+                // Apply the new color
+                this.applyCustomHighlightColor();
+
+                // Send message to extension to update the setting
+                vscode.postMessage({
+                    command: 'updateCharacterDiffHighlightColor',
+                    color: color
+                });
+            });
+
+            // Create the color picker element
+            const colorPickerElement = this.colorPicker.create();
+
+            // Add the color picker to the controls
+            controlsRight.appendChild(colorPickerElement);
         }
 
         /**

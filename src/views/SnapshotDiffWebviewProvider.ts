@@ -83,6 +83,18 @@ export class SnapshotDiffWebviewProvider {
                             await this.notificationManager.showErrorMessage(`Failed to update text wrapping setting: ${error}`);
                         }
                         break;
+                    case 'updateCharacterDiffHighlightColor':
+                        try {
+                            // Update the user's color setting
+                            await vscode.workspace.getConfiguration('localSnapshots').update(
+                                'characterDiffHighlightColor',
+                                message.color,
+                                vscode.ConfigurationTarget.Global
+                            );
+                        } catch (error) {
+                            await this.notificationManager.showErrorMessage(`Failed to update highlight color setting: ${error}`);
+                        }
+                        break;
                 }
             });
 
@@ -113,6 +125,10 @@ export class SnapshotDiffWebviewProvider {
     private _getHtmlForWebview(webview: vscode.Webview): string {
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'media', 'diffView.js')
+        );
+
+        const colorPickerScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'colorPicker.js')
         );
 
         const styleUri = webview.asWebviewUri(
@@ -217,6 +233,7 @@ export class SnapshotDiffWebviewProvider {
                 </div>
             </template>
         </div>
+        <script nonce="${nonce}" src="${colorPickerScriptUri}"></script>
         <script nonce="${nonce}" src="${scriptUri}"></script>
     </body>
     </html>`;
