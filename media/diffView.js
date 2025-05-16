@@ -248,12 +248,54 @@
         }
 
         /**
+         * Enhances a color for better contrast against dark or light backgrounds
+         * @param {string} color - The color in hex format (e.g., #FFD700)
+         * @returns {string} - The enhanced color with better contrast
+         */
+        enhanceColorContrast(color) {
+            // Check if we're in a dark theme
+            const isDarkTheme = document.body.classList.contains('vscode-dark');
+
+            // Parse the hex color
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+
+            // Calculate perceived brightness (using the formula for relative luminance)
+            const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+            // For dark themes, make bright colors more saturated
+            // For light themes, make dark colors more saturated
+            if (isDarkTheme && brightness < 0.7) {
+                // Brighten the color for dark themes
+                const factor = 1.3; // Increase brightness by 30%
+                const newR = Math.min(255, Math.round(r * factor));
+                const newG = Math.min(255, Math.round(g * factor));
+                const newB = Math.min(255, Math.round(b * factor));
+                return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+            } else if (!isDarkTheme && brightness > 0.5) {
+                // Darken the color for light themes
+                const factor = 0.8; // Decrease brightness by 20%
+                const newR = Math.round(r * factor);
+                const newG = Math.round(g * factor);
+                const newB = Math.round(b * factor);
+                return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+            }
+
+            // Return the original color if no adjustment is needed
+            return color;
+        }
+
+        /**
          * Applies the custom highlight color for character-level diffs
          */
         applyCustomHighlightColor() {
             if (!this.container) {
                 return;
             }
+
+            // Enhance the color for better contrast
+            const enhancedColor = this.enhanceColorContrast(this.characterDiffHighlightColor);
 
             // Create or update the style element for custom colors
             let styleEl = document.getElementById('custom-highlight-styles');
@@ -263,22 +305,30 @@
                 document.head.appendChild(styleEl);
             }
 
-            // Set the custom CSS with the user's color
+            // Set the custom CSS with the enhanced color and styling
             styleEl.textContent = `
-                .char-added { background-color: ${this.characterDiffHighlightColor} !important; }
-                .char-removed { background-color: ${this.characterDiffHighlightColor} !important; }
+                .char-added, .char-removed {
+                    background-color: ${enhancedColor} !important;
+                    border: 1px solid var(--char-diff-border-color) !important;
+                    box-shadow: var(--char-diff-shadow) !important;
+                    mix-blend-mode: normal !important;
+                    font-weight: bold !important;
+                    color: var(--char-diff-text-color) !important;
+                }
             `;
 
-            // Also update any existing character-level diff spans
-            const charAddedSpans = document.querySelectorAll('.char-added');
-            const charRemovedSpans = document.querySelectorAll('.char-removed');
+            // Also update any existing character-level diff spans with enhanced styling
+            const charDiffSpans = document.querySelectorAll('.char-added, .char-removed');
 
-            charAddedSpans.forEach(span => {
-                span.style.backgroundColor = this.characterDiffHighlightColor;
-            });
-
-            charRemovedSpans.forEach(span => {
-                span.style.backgroundColor = this.characterDiffHighlightColor;
+            charDiffSpans.forEach(span => {
+                span.style.backgroundColor = enhancedColor;
+                // Use getComputedStyle to get the current CSS variable values
+                const style = getComputedStyle(document.documentElement);
+                span.style.border = `1px solid ${style.getPropertyValue('--char-diff-border-color')}`;
+                span.style.boxShadow = style.getPropertyValue('--char-diff-shadow');
+                span.style.mixBlendMode = 'normal';
+                span.style.fontWeight = 'bold';
+                span.style.color = style.getPropertyValue('--char-diff-text-color');
             });
         }
 
@@ -871,6 +921,9 @@
                 type === 'added' ? content : originalContent
             );
 
+            // Enhance the color for better contrast
+            const enhancedColor = this.enhanceColorContrast(this.characterDiffHighlightColor);
+
             // Convert the diff to HTML
             return charDiff.map(segment => {
                 const escapedText = this.escapeHtml(segment.text);
@@ -878,9 +931,16 @@
                     return escapedText;
                 } else if ((segment.type === 'added' && type === 'added') ||
                            (segment.type === 'removed' && type === 'removed')) {
-                    // Apply the custom highlight color with inline style for better visibility
-                    // The !important in the CSS will ensure this is applied correctly
-                    return `<span class="char-${segment.type}" style="background-color: ${this.characterDiffHighlightColor}">${escapedText}</span>`;
+                    // Apply the enhanced color with inline style for better visibility
+                    // Add a border and other styling for better contrast
+                    return `<span class="char-${segment.type}" style="
+                        background-color: ${enhancedColor};
+                        border: 1px solid var(--char-diff-border-color);
+                        box-shadow: var(--char-diff-shadow);
+                        mix-blend-mode: normal;
+                        font-weight: bold;
+                        color: var(--char-diff-text-color);
+                    ">${escapedText}</span>`;
                 } else {
                     return escapedText;
                 }

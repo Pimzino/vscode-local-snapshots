@@ -8,6 +8,17 @@
     --spacing-sm: 8px;
     --spacing-md: 16px;
     --spacing-lg: 24px;
+
+    /* Character diff highlight variables */
+    --char-diff-border-color: rgba(0, 0, 0, 0.3);
+    --char-diff-text-color: var(--vscode-editor-foreground);
+    --char-diff-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Adjust border color for dark themes */
+.vscode-dark {
+    --char-diff-border-color: rgba(255, 255, 255, 0.3);
+    --char-diff-shadow: 0 0 3px rgba(255, 255, 255, 0.2);
 }
 
 body {
@@ -497,24 +508,40 @@ body {
 /* Character-level diff highlighting */
 .char-added {
     /* Default styling - will be overridden by custom color */
-    background-color: rgba(255, 215, 0, 0.5); /* Gold color with transparency */
+    background-color: #FFD700; /* Gold color without transparency */
     border-radius: 2px;
     padding: 0 1px;
     margin: 0 -1px;
-    /* Ensure good contrast against the green background */
-    mix-blend-mode: multiply;
+    /* Improved contrast with a border */
+    border: 1px solid var(--char-diff-border-color);
+    /* Remove blend mode for better visibility */
+    mix-blend-mode: normal;
+    /* Add a subtle box shadow for better visibility */
+    box-shadow: var(--char-diff-shadow);
+    /* Ensure text is readable */
+    color: var(--char-diff-text-color);
+    font-weight: bold;
 }
 
 .char-removed {
     /* Default styling - will be overridden by custom color */
-    background-color: rgba(255, 215, 0, 0.5); /* Gold color with transparency */
+    background-color: #FFD700; /* Gold color without transparency */
     border-radius: 2px;
     padding: 0 1px;
     margin: 0 -1px;
+    /* Improved contrast with a border */
+    border: 1px solid var(--char-diff-border-color);
+    /* Use a more visible strikethrough */
     text-decoration: line-through;
-    text-decoration-color: rgba(200, 80, 80, 0.5);
-    /* Ensure good contrast against the red background */
-    mix-blend-mode: multiply;
+    text-decoration-color: var(--char-diff-border-color);
+    text-decoration-thickness: 2px;
+    /* Remove blend mode for better visibility */
+    mix-blend-mode: normal;
+    /* Add a subtle box shadow for better visibility */
+    box-shadow: var(--char-diff-shadow);
+    /* Ensure text is readable */
+    color: var(--char-diff-text-color);
+    font-weight: bold;
 }
 
 /* Container for both views */
