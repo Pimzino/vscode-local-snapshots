@@ -107,6 +107,11 @@
           "default": false,
           "description": "Enable text wrapping in diff view. Useful for prose and markdown files with long paragraphs."
         },
+        "localSnapshots.enableCharacterLevelDiff": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable character-level highlighting in diff view to better identify specific changes within lines. Especially useful for prose and markdown files."
+        },
         "localSnapshots.enableDeleteProtection": {
           "type": "boolean",
           "default": true,

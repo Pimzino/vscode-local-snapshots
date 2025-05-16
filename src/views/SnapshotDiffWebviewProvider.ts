@@ -33,6 +33,7 @@ export class SnapshotDiffWebviewProvider {
         const config = vscode.workspace.getConfiguration('localSnapshots');
         const diffViewStyle = config.get('diffViewStyle', 'side-by-side');
         const enableTextWrapping = config.get('enableTextWrapping', false);
+        const enableCharacterLevelDiff = config.get('enableCharacterLevelDiff', true);
 
         // If we already have a panel, show it
         if (this._panel) {
@@ -102,7 +103,8 @@ export class SnapshotDiffWebviewProvider {
             snapshotName,
             files: diffData,
             diffViewStyle,
-            enableTextWrapping
+            enableTextWrapping,
+            enableCharacterLevelDiff
         });
     }
 

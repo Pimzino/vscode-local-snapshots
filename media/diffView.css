@@ -494,6 +494,23 @@ body {
     word-wrap: break-word;
 }
 
+/* Character-level diff highlighting */
+.char-added {
+    background-color: rgba(80, 200, 120, 0.2); /* Soft green background */
+    border-radius: 2px;
+    padding: 0 1px;
+    margin: 0 -1px;
+}
+
+.char-removed {
+    background-color: rgba(200, 80, 80, 0.2); /* Soft red background */
+    border-radius: 2px;
+    padding: 0 1px;
+    margin: 0 -1px;
+    text-decoration: line-through;
+    text-decoration-color: rgba(200, 80, 80, 0.5);
+}
+
 /* Container for both views */
 .diff-container {
     display: flex;

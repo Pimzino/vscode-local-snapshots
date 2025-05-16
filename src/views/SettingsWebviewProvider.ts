@@ -599,6 +599,12 @@ export class SettingsWebviewProvider {
                 description: 'Enable text wrapping in diff view. Useful for prose and markdown files with long paragraphs.',
                 category: 'Display'
             },
+            'enableCharacterLevelDiff': {
+                type: 'boolean',
+                default: true,
+                description: 'Enable character-level highlighting in diff view to better identify specific changes within lines. Especially useful for prose and markdown files.',
+                category: 'Display'
+            },
 
             // API Server Settings
             'enableApiServer': {

@@ -21,6 +21,8 @@
             this.diffViewStyle = 'side-by-side'; // Default style
             /** @type {boolean} */
             this.textWrappingEnabled = false; // Default to no text wrapping
+            /** @type {boolean} */
+            this.characterLevelDiffEnabled = true; // Default to enabled
             /** @type {HTMLElement | null} */
             this.filesContainer = document.getElementById('files-list');
             /** @type {HTMLTemplateElement | null} */
@@ -75,6 +77,7 @@
                     case 'showDiff': {
                         this.diffViewStyle = message.diffViewStyle || 'side-by-side';
                         this.textWrappingEnabled = message.enableTextWrapping || false;
+                        this.characterLevelDiffEnabled = message.enableCharacterLevelDiff !== false; // Default to true if not specified
                         this.applyTextWrapping();
                         this.renderDiff(message.files);
                         break;
@@ -633,6 +636,102 @@
         }
 
         /**
+         * Computes character-level diff between two strings
+         * @param {string} original - The original string
+         * @param {string} modified - The modified string
+         * @returns {Array<{type: string, text: string}>} - Array of segments with their types
+         */
+        computeCharacterDiff(original, modified) {
+            // Simple implementation of character-level diff
+            if (original === modified) {
+                return [{type: 'unchanged', text: original}];
+            }
+
+            // If one string is empty, return appropriate result
+            if (!original) {
+                return [{type: 'added', text: modified}];
+            }
+            if (!modified) {
+                return [{type: 'removed', text: original}];
+            }
+
+            // Find common prefix and suffix
+            let i = 0;
+            while (i < original.length && i < modified.length && original[i] === modified[i]) {
+                i++;
+            }
+
+            let j = 0;
+            while (
+                original.length - 1 - j >= i &&
+                modified.length - 1 - j >= i &&
+                original[original.length - 1 - j] === modified[modified.length - 1 - j]
+            ) {
+                j++;
+            }
+
+            const prefix = original.substring(0, i);
+            const originalMiddle = original.substring(i, original.length - j);
+            const modifiedMiddle = modified.substring(i, modified.length - j);
+            const suffix = original.substring(original.length - j);
+
+            const result = [];
+
+            // Add common prefix if it exists
+            if (prefix) {
+                result.push({type: 'unchanged', text: prefix});
+            }
+
+            // Add the changed parts
+            if (originalMiddle) {
+                result.push({type: 'removed', text: originalMiddle});
+            }
+            if (modifiedMiddle) {
+                result.push({type: 'added', text: modifiedMiddle});
+            }
+
+            // Add common suffix if it exists
+            if (suffix) {
+                result.push({type: 'unchanged', text: suffix});
+            }
+
+            return result;
+        }
+
+        /**
+         * Renders a line with character-level diff highlighting
+         * @param {string} content - The line content
+         * @param {string} originalContent - The original line content for comparison
+         * @param {string} type - The line type (added, removed, unchanged)
+         * @returns {string} - HTML string with character-level highlighting
+         */
+        renderLineWithCharDiff(content, originalContent, type) {
+            // If character-level diff is disabled or the line is unchanged, just return the content
+            if (!this.characterLevelDiffEnabled || type === 'unchanged' || !originalContent || !content) {
+                return this.escapeHtml(content || '');
+            }
+
+            // For added/removed lines, compute character diff
+            const charDiff = this.computeCharacterDiff(
+                type === 'removed' ? content : originalContent,
+                type === 'added' ? content : originalContent
+            );
+
+            // Convert the diff to HTML
+            return charDiff.map(segment => {
+                const escapedText = this.escapeHtml(segment.text);
+                if (segment.type === 'unchanged') {
+                    return escapedText;
+                } else if ((segment.type === 'added' && type === 'added') ||
+                           (segment.type === 'removed' && type === 'removed')) {
+                    return `<span class="char-${segment.type}">${escapedText}</span>`;
+                } else {
+                    return escapedText;
+                }
+            }).join('');
+        }
+
+        /**
          * @param {Array<{type: string, content: string, originalLine?: number, modifiedLine?: number}>} diff
          */
         renderDiffContent(diff) {
@@ -660,10 +759,58 @@
          * @param {Array<{type: string, content: string, originalLine?: number, modifiedLine?: number}>} diff
          */
         renderVerticalDiff(diff) {
+            // Find corresponding lines for character-level diff
+            const lineMap = new Map();
+            diff.forEach(line => {
+                if (line.type === 'added' || line.type === 'removed') {
+                    // Try to find a corresponding line with the opposite type
+                    const oppositeType = line.type === 'added' ? 'removed' : 'added';
+                    const lineNumber = line.type === 'added' ? line.modifiedLine : line.originalLine;
+
+                    // Look for a line with the opposite type and a similar line number
+                    const correspondingLine = diff.find(l =>
+                        l.type === oppositeType &&
+                        (l.originalLine === lineNumber || l.modifiedLine === lineNumber)
+                    );
+
+                    if (correspondingLine) {
+                        lineMap.set(line, correspondingLine);
+                    }
+                }
+            });
+
             return diff.map(line => {
                 const lineNumberLeft = line.originalLine || '•';
                 const lineNumberRight = line.modifiedLine || '•';
                 const lineClass = line.type === 'unchanged' ? '' : line.type;
+
+                // Get corresponding line for character-level diff if available
+                const correspondingLine = lineMap.get(line);
+
+                let leftContent = '';
+                let rightContent = '';
+
+                if (line.type === 'added') {
+                    // For added lines, show empty on left, content on right
+                    leftContent = '';
+                    rightContent = this.renderLineWithCharDiff(
+                        line.content,
+                        correspondingLine ? correspondingLine.content : '',
+                        'added'
+                    );
+                } else if (line.type === 'removed') {
+                    // For removed lines, show content on left, empty on right
+                    leftContent = this.renderLineWithCharDiff(
+                        line.content,
+                        correspondingLine ? correspondingLine.content : '',
+                        'removed'
+                    );
+                    rightContent = '';
+                } else {
+                    // For unchanged lines, show content on both sides
+                    leftContent = this.escapeHtml(line.content);
+                    rightContent = this.escapeHtml(line.content);
+                }
 
                 return `
                     <div class="diff-line ${lineClass}">
@@ -672,8 +819,8 @@
                             <div class="diff-line-number">${lineNumberRight}</div>
                         </div>
                         <div class="diff-line-content">
-                            <div class="diff-line-left">${line.type === 'added' ? '' : this.escapeHtml(line.content)}</div>
-                            <div class="diff-line-right">${line.type === 'removed' ? '' : this.escapeHtml(line.content)}</div>
+                            <div class="diff-line-left">${leftContent}</div>
+                            <div class="diff-line-right">${rightContent}</div>
                         </div>
                     </div>
                 `;
@@ -684,6 +831,26 @@
          * @param {Array<{type: string, content: string, originalLine?: number, modifiedLine?: number}>} diff
          */
         renderHorizontalDiff(diff) {
+            // Find corresponding lines for character-level diff
+            const lineMap = new Map();
+            diff.forEach(line => {
+                if (line.type === 'added' || line.type === 'removed') {
+                    // Try to find a corresponding line with the opposite type
+                    const oppositeType = line.type === 'added' ? 'removed' : 'added';
+                    const lineNumber = line.type === 'added' ? line.modifiedLine : line.originalLine;
+
+                    // Look for a line with the opposite type and a similar line number
+                    const correspondingLine = diff.find(l =>
+                        l.type === oppositeType &&
+                        (l.originalLine === lineNumber || l.modifiedLine === lineNumber)
+                    );
+
+                    if (correspondingLine) {
+                        lineMap.set(line, correspondingLine);
+                    }
+                }
+            });
+
             return `<div class="diff-horizontal">
                 <div class="diff-content">
                     ${diff.map(line => {
@@ -691,11 +858,23 @@
                         const lineClass = line.type === 'unchanged' ? '' : line.type;
                         const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
 
+                        // Get corresponding line for character-level diff if available
+                        const correspondingLine = lineMap.get(line);
+
+                        // Apply character-level diff if enabled and we have a corresponding line
+                        const content = line.type !== 'unchanged'
+                            ? this.renderLineWithCharDiff(
+                                line.content,
+                                correspondingLine ? correspondingLine.content : '',
+                                line.type
+                              )
+                            : this.escapeHtml(line.content);
+
                         return `
                             <div class="diff-line-horizontal ${lineClass}">
                                 <div class="diff-line-number">${lineNumber}</div>
                                 <div class="diff-line-prefix">${prefix}</div>
-                                <div class="diff-line-content">${this.escapeHtml(line.content)}</div>
+                                <div class="diff-line-content">${content}</div>
                             </div>
                         `;
                     }).join('')}
