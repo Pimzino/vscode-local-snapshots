@@ -23,6 +23,8 @@
             this.textWrappingEnabled = false; // Default to no text wrapping
             /** @type {boolean} */
             this.characterLevelDiffEnabled = true; // Default to enabled
+            /** @type {string} */
+            this.characterDiffHighlightColor = '#FFD700'; // Default to gold color
             /** @type {HTMLElement | null} */
             this.filesContainer = document.getElementById('files-list');
             /** @type {HTMLTemplateElement | null} */
@@ -78,7 +80,9 @@
                         this.diffViewStyle = message.diffViewStyle || 'side-by-side';
                         this.textWrappingEnabled = message.enableTextWrapping || false;
                         this.characterLevelDiffEnabled = message.enableCharacterLevelDiff !== false; // Default to true if not specified
+                        this.characterDiffHighlightColor = message.characterDiffHighlightColor || '#FFD700';
                         this.applyTextWrapping();
+                        this.applyCustomHighlightColor();
                         this.renderDiff(message.files);
                         break;
                     }
@@ -147,6 +151,29 @@
             } else {
                 this.container.classList.remove('text-wrap-enabled');
             }
+        }
+
+        /**
+         * Applies the custom highlight color for character-level diffs
+         */
+        applyCustomHighlightColor() {
+            if (!this.container) {
+                return;
+            }
+
+            // Create or update the style element for custom colors
+            let styleEl = document.getElementById('custom-highlight-styles');
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = 'custom-highlight-styles';
+                document.head.appendChild(styleEl);
+            }
+
+            // Set the custom CSS with the user's color
+            styleEl.textContent = `
+                .char-added { background-color: ${this.characterDiffHighlightColor} !important; }
+                .char-removed { background-color: ${this.characterDiffHighlightColor} !important; }
+            `;
         }
 
         initializeSearch() {
@@ -724,7 +751,9 @@
                     return escapedText;
                 } else if ((segment.type === 'added' && type === 'added') ||
                            (segment.type === 'removed' && type === 'removed')) {
-                    return `<span class="char-${segment.type}">${escapedText}</span>`;
+                    // Apply the custom highlight color with inline style for better visibility
+                    // The !important in the CSS will ensure this is applied correctly
+                    return `<span class="char-${segment.type}" style="background-color: ${this.characterDiffHighlightColor}">${escapedText}</span>`;
                 } else {
                     return escapedText;
                 }

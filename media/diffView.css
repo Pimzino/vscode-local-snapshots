@@ -496,19 +496,25 @@ body {
 
 /* Character-level diff highlighting */
 .char-added {
-    background-color: rgba(80, 200, 120, 0.2); /* Soft green background */
+    /* Default styling - will be overridden by custom color */
+    background-color: rgba(255, 215, 0, 0.5); /* Gold color with transparency */
     border-radius: 2px;
     padding: 0 1px;
     margin: 0 -1px;
+    /* Ensure good contrast against the green background */
+    mix-blend-mode: multiply;
 }
 
 .char-removed {
-    background-color: rgba(200, 80, 80, 0.2); /* Soft red background */
+    /* Default styling - will be overridden by custom color */
+    background-color: rgba(255, 215, 0, 0.5); /* Gold color with transparency */
     border-radius: 2px;
     padding: 0 1px;
     margin: 0 -1px;
     text-decoration: line-through;
     text-decoration-color: rgba(200, 80, 80, 0.5);
+    /* Ensure good contrast against the red background */
+    mix-blend-mode: multiply;
 }
 
 /* Container for both views */

@@ -605,6 +605,12 @@ export class SettingsWebviewProvider {
                 description: 'Enable character-level highlighting in diff view to better identify specific changes within lines. Especially useful for prose and markdown files.',
                 category: 'Display'
             },
+            'characterDiffHighlightColor': {
+                type: 'string',
+                default: '#FFD700',
+                description: 'Color used for highlighting character-level differences in the diff view. Use a color that provides good contrast against both added and removed backgrounds.',
+                category: 'Display'
+            },
 
             // API Server Settings
             'enableApiServer': {
