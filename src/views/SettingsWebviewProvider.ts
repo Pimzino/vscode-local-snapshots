@@ -599,6 +599,12 @@ export class SettingsWebviewProvider {
                 description: 'Enable text wrapping in diff view. Useful for prose and markdown files with long paragraphs.',
                 category: 'Display'
             },
+            'enableLineLevelDiff': {
+                type: 'boolean',
+                default: true,
+                description: 'Enable line-level highlighting in diff view to show added and removed lines. Disable to show only character-level differences.',
+                category: 'Display'
+            },
             'enableCharacterLevelDiff': {
                 type: 'boolean',
                 default: true,

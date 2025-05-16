@@ -23,11 +23,15 @@
             /** @type {boolean} */
             this.textWrappingEnabled = false; // Default to no text wrapping
             /** @type {boolean} */
+            this.lineLevelDiffEnabled = true; // Default to enabled
+            /** @type {boolean} */
             this.characterLevelDiffEnabled = true; // Default to enabled
             /** @type {string} */
             this.characterDiffHighlightColor = '#FFD700'; // Default to gold color
             /** @type {number | null} */
             this.colorUpdateTimeout = null;
+            /** @type {any[] | null} */
+            this.currentFiles = null;
             /** @type {HTMLElement | null} */
             this.filesContainer = document.getElementById('files-list');
             /** @type {HTMLTemplateElement | null} */
@@ -78,6 +82,9 @@
             // Create text wrap toggle button
             this.createTextWrapToggle();
 
+            // Create line-level diff toggle button
+            this.createLineLevelDiffToggle();
+
             // Create color picker
             this.createColorPicker();
 
@@ -87,6 +94,7 @@
                     case 'showDiff': {
                         this.diffViewStyle = message.diffViewStyle || 'side-by-side';
                         this.textWrappingEnabled = message.enableTextWrapping || false;
+                        this.lineLevelDiffEnabled = message.enableLineLevelDiff !== false; // Default to true if not specified
                         this.characterLevelDiffEnabled = message.enableCharacterLevelDiff !== false; // Default to true if not specified
                         this.characterDiffHighlightColor = message.characterDiffHighlightColor || '#FFD700';
                         this.applyTextWrapping();
@@ -144,6 +152,49 @@
 
             // Add the button to the controls
             controlsRight.appendChild(textWrapToggle);
+        }
+
+        /**
+         * Creates the line-level diff toggle button in the global controls
+         */
+        createLineLevelDiffToggle() {
+            if (!this.container) {
+                return;
+            }
+
+            const controlsRight = this.container.querySelector('.controls-right');
+            if (!controlsRight) {
+                return;
+            }
+
+            // Create the line-level diff toggle button
+            const lineLevelDiffToggle = document.createElement('button');
+            lineLevelDiffToggle.className = 'global-control line-level-diff-toggle';
+            lineLevelDiffToggle.innerHTML = '<span class="codicon codicon-list-selection"></span> Line Diff';
+            lineLevelDiffToggle.title = 'Toggle line-level diff highlighting';
+
+            // Set initial state based on the setting
+            if (this.lineLevelDiffEnabled) {
+                lineLevelDiffToggle.classList.add('active');
+            }
+
+            // Add click handler
+            lineLevelDiffToggle.addEventListener('click', () => {
+                this.lineLevelDiffEnabled = !this.lineLevelDiffEnabled;
+                lineLevelDiffToggle.classList.toggle('active', this.lineLevelDiffEnabled);
+
+                // Re-render the diff with the new setting
+                this.renderDiff(this.currentFiles);
+
+                // Send message to extension to update the setting
+                vscode.postMessage({
+                    command: 'toggleLineLevelDiff',
+                    enabled: this.lineLevelDiffEnabled
+                });
+            });
+
+            // Add the button to the controls
+            controlsRight.appendChild(lineLevelDiffToggle);
         }
 
         /**
@@ -592,6 +643,9 @@
                 return;
             }
 
+            // Store the current files for re-rendering when settings change
+            this.currentFiles = files;
+
             this.filesContainer.innerHTML = '';
 
             files.forEach(file => {
@@ -884,7 +938,9 @@
             return diff.map(line => {
                 const lineNumberLeft = line.originalLine || '•';
                 const lineNumberRight = line.modifiedLine || '•';
-                const lineClass = line.type === 'unchanged' ? '' : line.type;
+                // Only apply line class if line-level diff is enabled
+                const lineClass = line.type === 'unchanged' ? '' :
+                                 (this.lineLevelDiffEnabled ? line.type : '');
 
                 // Get corresponding line for character-level diff if available
                 const correspondingLine = lineMap.get(line);
@@ -957,7 +1013,9 @@
                 <div class="diff-content">
                     ${diff.map(line => {
                         const lineNumber = line.originalLine || line.modifiedLine || '•';
-                        const lineClass = line.type === 'unchanged' ? '' : line.type;
+                        // Only apply line class if line-level diff is enabled
+                        const lineClass = line.type === 'unchanged' ? '' :
+                                         (this.lineLevelDiffEnabled ? line.type : '');
                         const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
 
                         // Get corresponding line for character-level diff if available

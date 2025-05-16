@@ -33,6 +33,7 @@ export class SnapshotDiffWebviewProvider {
         const config = vscode.workspace.getConfiguration('localSnapshots');
         const diffViewStyle = config.get('diffViewStyle', 'side-by-side');
         const enableTextWrapping = config.get('enableTextWrapping', false);
+        const enableLineLevelDiff = config.get('enableLineLevelDiff', true);
         const enableCharacterLevelDiff = config.get('enableCharacterLevelDiff', true);
         const characterDiffHighlightColor = config.get('characterDiffHighlightColor', '#FFD700');
 
@@ -83,6 +84,18 @@ export class SnapshotDiffWebviewProvider {
                             await this.notificationManager.showErrorMessage(`Failed to update text wrapping setting: ${error}`);
                         }
                         break;
+                    case 'toggleLineLevelDiff':
+                        try {
+                            // Update the user setting
+                            await vscode.workspace.getConfiguration('localSnapshots').update(
+                                'enableLineLevelDiff',
+                                message.enabled,
+                                vscode.ConfigurationTarget.Global
+                            );
+                        } catch (error) {
+                            await this.notificationManager.showErrorMessage(`Failed to update line-level diff setting: ${error}`);
+                        }
+                        break;
                     case 'updateCharacterDiffHighlightColor':
                         try {
                             // Update the user's color setting
@@ -117,6 +130,7 @@ export class SnapshotDiffWebviewProvider {
             files: diffData,
             diffViewStyle,
             enableTextWrapping,
+            enableLineLevelDiff,
             enableCharacterLevelDiff,
             characterDiffHighlightColor
         });

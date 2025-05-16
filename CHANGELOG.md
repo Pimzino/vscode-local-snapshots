@@ -4,18 +4,22 @@ All notable changes to the "Local Snapshots" extension will be documented in thi
 
 ## [0.0.17] - 2025-05-15
 
-### ✨ New Feature: Text Wrapping in Diff View
+### ✨ New Features: Enhanced Diff View Controls
 
 - We've added text wrapping support to make it easier to read and compare long lines of text. (Thanks @fungai2000 for the enhancement request!)
+- Added line-level diff toggle to allow more control over how differences are displayed
 
 #### What's New
 - Text wrapping option for both side-by-side and inline diff views
-- Toggle button in the diff view UI for quick access
-- Persistent setting that works across all diff views
+- Line-level diff toggle to show/hide line background colors
+- Toggle buttons in the diff view UI for quick access
+- Persistent settings that work across all diff views
 - Especially useful for markdown files and other prose content with long paragraphs
+- Ability to combine line-level and character-level diffs in any way you prefer
 
 #### New Settings
 - `localSnapshots.enableTextWrapping`: Enable/disable text wrapping in diff view (default: `false`)
+- `localSnapshots.enableLineLevelDiff`: Enable/disable line-level diff highlighting (default: `true`)
 
 ## [0.0.16] - 2025-05-01
 
