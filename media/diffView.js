@@ -1,4 +1,5 @@
 // @ts-check
+/// <reference path="./colorPicker.d.ts" />
 
 (function () {
     // @ts-ignore
@@ -55,7 +56,7 @@
             this.collapseAllBtn = document.querySelector('.collapse-all');
             /** @type {HTMLElement | null} */
             this.restoreAllBtn = document.querySelector('.restore-all');
-            /** @type {ColorPicker | null} */
+            /** @type {import('./colorPicker').ColorPicker | null} */
             this.colorPicker = null;
 
             if (!this.container || !this.filesContainer || !this.fileTemplate) {
@@ -147,7 +148,7 @@
          * Creates the color picker in the global controls
          */
         createColorPicker() {
-            if (!this.container || !window.ColorPicker) {
+            if (!this.container || typeof window.ColorPicker !== 'function') {
                 return;
             }
 
@@ -157,7 +158,9 @@
             }
 
             // Create the color picker
-            this.colorPicker = new window.ColorPicker(this.characterDiffHighlightColor, (color) => {
+            /** @type {any} */
+            const ColorPickerConstructor = window.ColorPicker;
+            this.colorPicker = new ColorPickerConstructor(this.characterDiffHighlightColor, (color) => {
                 // Update the color
                 this.characterDiffHighlightColor = color;
 
