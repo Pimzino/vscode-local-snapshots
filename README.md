@@ -31,6 +31,7 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
   - Search within diffs
   - Previous/Next match navigation
   - Match count indicator
+  - Text wrapping for long lines (great for markdown and prose)
 - **Tree View**: Browse snapshot contents in a hierarchical structure
   - Directory-based file organization
   - Expand/collapse folders
@@ -80,6 +81,7 @@ Take and restore snapshots of your workspace files with ease. Local Snapshots pr
 
 ### Display Settings
 * `local-snapshots.diffViewStyle`: Choose how to display file differences: side-by-side, inline, or both views (default: `side-by-side`)
+* `local-snapshots.enableTextWrapping`: Enable text wrapping in diff view. Useful for prose and markdown files with long paragraphs. (default: `false`)
 
 ### Server Settings
 * `local-snapshots.enableApiServer`: Enable/disable the REST API server (default: `false`)
@@ -213,11 +215,17 @@ If the default port is already in use, the extension will:
 - Access the settings page by clicking the gear icon in the Local Snapshots sidebar
 - Navigate between tabs to configure different aspects of the extension
 - The General tab contains basic settings like automatic snapshots and storage management
-- The Snapshots tab has settings for snapshot behavior and display
+- The Display tab has settings for diff view style and text wrapping
 - The API Server tab provides configuration and usage examples for the REST API
 - The MCP Server tab offers settings and connection information for the MCP server
 - Real-time server status and port information is displayed in the respective tabs
 - All changes are immediately saved to your VS Code settings
+
+### Using Text Wrapping
+- Enable text wrapping in settings to make long lines wrap in the diff view
+- Toggle text wrapping directly in the diff view using the "Wrap Text" button
+- Text wrapping is especially useful for markdown files and other prose content
+- The setting persists between sessions and applies to all diff views
 
 ### Managing Ignore Patterns
 - Access the ignore patterns manager from the Local Snapshots sidebar

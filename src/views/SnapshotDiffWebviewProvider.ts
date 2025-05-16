@@ -29,8 +29,10 @@ export class SnapshotDiffWebviewProvider {
         this._snapshotName = snapshotName;
         this._timestamp = timestamp;
 
-        // Get user's diff view style preference
-        const diffViewStyle = vscode.workspace.getConfiguration('localSnapshots').get('diffViewStyle', 'side-by-side');
+        // Get user's diff view style and text wrapping preferences
+        const config = vscode.workspace.getConfiguration('localSnapshots');
+        const diffViewStyle = config.get('diffViewStyle', 'side-by-side');
+        const enableTextWrapping = config.get('enableTextWrapping', false);
 
         // If we already have a panel, show it
         if (this._panel) {
@@ -67,6 +69,18 @@ export class SnapshotDiffWebviewProvider {
                             await this.notificationManager.showErrorMessage(`Failed to restore file: ${message.filePath}`);
                         }
                         break;
+                    case 'toggleTextWrapping':
+                        try {
+                            // Update the user setting
+                            await vscode.workspace.getConfiguration('localSnapshots').update(
+                                'enableTextWrapping',
+                                message.enabled,
+                                vscode.ConfigurationTarget.Global
+                            );
+                        } catch (error) {
+                            await this.notificationManager.showErrorMessage(`Failed to update text wrapping setting: ${error}`);
+                        }
+                        break;
                 }
             });
 
@@ -87,7 +101,8 @@ export class SnapshotDiffWebviewProvider {
             type: 'showDiff',
             snapshotName,
             files: diffData,
-            diffViewStyle
+            diffViewStyle,
+            enableTextWrapping
         });
     }
 

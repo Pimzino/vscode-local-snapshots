@@ -2,7 +2,7 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Create and manage local snapshots of your workspace files",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "publisher": "Pimzino",
   "license": "MIT",
   "repository": {
@@ -101,6 +101,11 @@
           ],
           "default": "side-by-side",
           "description": "Choose how to display file differences: side-by-side (split view), inline (unified view), or both views"
+        },
+        "localSnapshots.enableTextWrapping": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable text wrapping in diff view. Useful for prose and markdown files with long paragraphs."
         },
         "localSnapshots.enableDeleteProtection": {
           "type": "boolean",

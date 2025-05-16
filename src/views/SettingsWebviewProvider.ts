@@ -593,6 +593,12 @@ export class SettingsWebviewProvider {
                 description: 'Choose how to display file differences',
                 category: 'Display'
             },
+            'enableTextWrapping': {
+                type: 'boolean',
+                default: false,
+                description: 'Enable text wrapping in diff view. Useful for prose and markdown files with long paragraphs.',
+                category: 'Display'
+            },
 
             // API Server Settings
             'enableApiServer': {

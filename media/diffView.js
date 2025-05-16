@@ -19,6 +19,8 @@
             this.container = document.getElementById('diff-container');
             /** @type {string} */
             this.diffViewStyle = 'side-by-side'; // Default style
+            /** @type {boolean} */
+            this.textWrappingEnabled = false; // Default to no text wrapping
             /** @type {HTMLElement | null} */
             this.filesContainer = document.getElementById('files-list');
             /** @type {HTMLTemplateElement | null} */
@@ -64,11 +66,16 @@
             this.collapseAllBtn?.addEventListener('click', () => this.collapseAllFiles());
             this.restoreAllBtn?.addEventListener('click', () => this.restoreAllFiles());
 
+            // Create text wrap toggle button
+            this.createTextWrapToggle();
+
             window.addEventListener('message', event => {
                 const message = event.data;
                 switch (message.type) {
                     case 'showDiff': {
                         this.diffViewStyle = message.diffViewStyle || 'side-by-side';
+                        this.textWrappingEnabled = message.enableTextWrapping || false;
+                        this.applyTextWrapping();
                         this.renderDiff(message.files);
                         break;
                     }
@@ -81,6 +88,62 @@
 
             // Initialize search functionality
             this.initializeSearch();
+        }
+
+        /**
+         * Creates the text wrap toggle button in the global controls
+         */
+        createTextWrapToggle() {
+            if (!this.container) {
+                return;
+            }
+
+            const controlsRight = this.container.querySelector('.controls-right');
+            if (!controlsRight) {
+                return;
+            }
+
+            // Create the text wrap toggle button
+            const textWrapToggle = document.createElement('button');
+            textWrapToggle.className = 'global-control text-wrap-toggle';
+            textWrapToggle.innerHTML = '<span class="codicon codicon-word-wrap"></span> Wrap Text';
+            textWrapToggle.title = 'Toggle text wrapping';
+
+            // Set initial state based on the setting
+            if (this.textWrappingEnabled) {
+                textWrapToggle.classList.add('active');
+            }
+
+            // Add click handler
+            textWrapToggle.addEventListener('click', () => {
+                this.textWrappingEnabled = !this.textWrappingEnabled;
+                textWrapToggle.classList.toggle('active', this.textWrappingEnabled);
+                this.applyTextWrapping();
+
+                // Send message to extension to update the setting
+                vscode.postMessage({
+                    command: 'toggleTextWrapping',
+                    enabled: this.textWrappingEnabled
+                });
+            });
+
+            // Add the button to the controls
+            controlsRight.appendChild(textWrapToggle);
+        }
+
+        /**
+         * Applies text wrapping based on the current setting
+         */
+        applyTextWrapping() {
+            if (!this.container) {
+                return;
+            }
+
+            if (this.textWrappingEnabled) {
+                this.container.classList.add('text-wrap-enabled');
+            } else {
+                this.container.classList.remove('text-wrap-enabled');
+            }
         }
 
         initializeSearch() {
@@ -132,7 +195,7 @@
             }
 
             const query = this.searchInput.value.trim().toLowerCase();
-            
+
             // Clear previous highlights
             this.clearHighlights();
 
@@ -159,7 +222,7 @@
                     // Handle both vertical and horizontal diff views
                     const verticalLines = diffContent.querySelectorAll('.diff-line-left, .diff-line-right');
                     const horizontalLines = diffContent.querySelectorAll('.diff-line-horizontal .diff-line-content');
-                    
+
                     const searchInLines = (lines) => {
                         lines.forEach(line => {
                             const text = line.textContent || '';
@@ -172,32 +235,32 @@
                                 const wrapper = document.createElement('span');
                                 wrapper.className = 'search-wrapper';
                                 const content = text;
-                                
+
                                 // Split and highlight the matching text
                                 const lowerContent = content.toLowerCase();
                                 let lastIndex = 0;
                                 let html = '';
-                                
+
                                 let matchIndex = lowerContent.indexOf(query);
                                 while (matchIndex !== -1) {
                                     // Add text before match
                                     html += this.escapeHtml(content.slice(lastIndex, matchIndex));
-                                    
+
                                     // Add highlighted match
                                     const highlight = document.createElement('span');
                                     highlight.className = 'search-highlight';
                                     highlight.textContent = content.slice(matchIndex, matchIndex + query.length);
                                     html += highlight.outerHTML;
-                                    
+
                                     lastIndex = matchIndex + query.length;
                                     matchIndex = lowerContent.indexOf(query, lastIndex);
                                 }
-                                
+
                                 // Add remaining text
                                 if (lastIndex < content.length) {
                                     html += this.escapeHtml(content.slice(lastIndex));
                                 }
-                                
+
                                 wrapper.innerHTML = html;
                                 line.innerHTML = wrapper.outerHTML;
 
@@ -475,7 +538,7 @@
                     if (!target.closest('.restore-button')) {
                         const isCollapsed = header.classList.toggle('collapsed');
                         content.classList.toggle('expanded');
-                        collapseIndicator.setAttribute('data-tooltip', 
+                        collapseIndicator.setAttribute('data-tooltip',
                             isCollapsed ? 'Click to expand' : 'Click to collapse'
                         );
                     }
@@ -587,8 +650,8 @@
                     </div>
                 `;
             }
-            
-            return this.diffViewStyle === 'side-by-side' 
+
+            return this.diffViewStyle === 'side-by-side'
                 ? this.renderVerticalDiff(diff)
                 : this.renderHorizontalDiff(diff);
         }
@@ -601,7 +664,7 @@
                 const lineNumberLeft = line.originalLine || '•';
                 const lineNumberRight = line.modifiedLine || '•';
                 const lineClass = line.type === 'unchanged' ? '' : line.type;
-                
+
                 return `
                     <div class="diff-line ${lineClass}">
                         <div class="diff-line-numbers">
@@ -627,7 +690,7 @@
                         const lineNumber = line.originalLine || line.modifiedLine || '•';
                         const lineClass = line.type === 'unchanged' ? '' : line.type;
                         const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
-                        
+
                         return `
                             <div class="diff-line-horizontal ${lineClass}">
                                 <div class="diff-line-number">${lineNumber}</div>
@@ -654,4 +717,4 @@
     }
 
     new DiffView();
-}()); 
+}());

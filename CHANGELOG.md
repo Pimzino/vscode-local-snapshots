@@ -2,6 +2,21 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.17] - 2025-05-15
+
+### ✨ New Feature: Text Wrapping in Diff View
+
+- We've added text wrapping support to make it easier to read and compare long lines of text. (Thanks @fungai2000 for the enhancement request!)
+
+#### What's New
+- Text wrapping option for both side-by-side and inline diff views
+- Toggle button in the diff view UI for quick access
+- Persistent setting that works across all diff views
+- Especially useful for markdown files and other prose content with long paragraphs
+
+#### New Settings
+- `localSnapshots.enableTextWrapping`: Enable/disable text wrapping in diff view (default: `false`)
+
 ## [0.0.16] - 2025-05-01
 
 ### 🐛 Bug Fixes

@@ -69,6 +69,11 @@ body {
     transform: translateY(-1px);
 }
 
+.global-control.active {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
 .restore-all {
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
@@ -283,6 +288,13 @@ body {
     overflow: auto;
 }
 
+/* Text wrapping styles for side-by-side view */
+.text-wrap-enabled .diff-line .diff-line-left,
+.text-wrap-enabled .diff-line .diff-line-right {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
 .diff-line .diff-line-left {
     border-right: 1px solid var(--vscode-widget-border);
 }
@@ -327,6 +339,12 @@ body {
     white-space: pre;
     overflow-x: auto;
     min-width: 0; /* Allow content to shrink */
+}
+
+/* Text wrapping styles for inline view */
+.text-wrap-enabled .diff-line-horizontal .diff-line-content {
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .diff-line-horizontal.added {
@@ -469,6 +487,13 @@ body {
     white-space: pre;
 }
 
+/* Text wrapping styles for duplicated rules */
+.text-wrap-enabled .diff-line-left,
+.text-wrap-enabled .diff-line-right {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
 /* Container for both views */
 .diff-container {
     display: flex;
@@ -525,6 +550,12 @@ body {
     flex: 1;
     white-space: pre;
     overflow-x: auto;
+}
+
+/* Text wrapping styles for duplicated horizontal rules */
+.text-wrap-enabled .diff-line-horizontal .diff-line-content {
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 
 .diff-line-horizontal.added .diff-line-prefix {
