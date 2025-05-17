@@ -27,7 +27,7 @@
             /** @type {boolean} */
             this.characterLevelDiffEnabled = true; // Default to enabled
             /** @type {string} */
-            this.characterDiffHighlightColor = '#FFD700'; // Default to gold color
+            this.characterDiffHighlightColor = ''; // Will be set from settings when showDiff is called
             /** @type {number | null} */
             this.colorUpdateTimeout = null;
             /** @type {any[] | null} */
@@ -85,9 +85,6 @@
             // Create line-level diff toggle button
             this.createLineLevelDiffToggle();
 
-            // Create color picker
-            this.createColorPicker();
-
             window.addEventListener('message', event => {
                 const message = event.data;
                 switch (message.type) {
@@ -96,14 +93,46 @@
                         this.textWrappingEnabled = message.enableTextWrapping || false;
                         this.lineLevelDiffEnabled = message.enableLineLevelDiff !== false; // Default to true if not specified
                         this.characterLevelDiffEnabled = message.enableCharacterLevelDiff !== false; // Default to true if not specified
-                        this.characterDiffHighlightColor = message.characterDiffHighlightColor || '#FFD700';
+
+                        // Make sure we have a valid color from settings
+                        if (message.characterDiffHighlightColor) {
+                            this.characterDiffHighlightColor = message.characterDiffHighlightColor;
+
+                            // Update the color picker if it exists
+                            if (this.colorPicker) {
+                                this.colorPicker.setColorFromHex(message.characterDiffHighlightColor);
+                                this.colorPicker.updateUI();
+                            }
+                        }
+
                         this.applyTextWrapping();
-                        this.applyCustomHighlightColor();
+
+                        // Create the color picker now that we have a valid color
+                        this.createColorPicker();
+
+                        // First render the diff
                         this.renderDiff(message.files);
+
+                        // Then apply the highlight color to ensure it's applied to the rendered content
+                        this.applyCustomHighlightColor();
                         break;
                     }
                     case 'fileRestored': {
                         this.handleFileRestored(message.filePath);
+                        break;
+                    }
+                    case 'updateHighlightColor': {
+                        // Update the color
+                        this.characterDiffHighlightColor = message.color;
+
+                        // Update the color picker if it exists
+                        if (this.colorPicker) {
+                            this.colorPicker.setColorFromHex(message.color);
+                            this.colorPicker.updateUI();
+                        }
+
+                        // Apply the new color
+                        this.applyCustomHighlightColor();
                         break;
                     }
                 }
@@ -210,6 +239,11 @@
                 return;
             }
 
+            // Only create the color picker if we have a valid color
+            if (!this.characterDiffHighlightColor) {
+                return;
+            }
+
             // Create the color picker
             /** @type {any} */
             const ColorPickerConstructor = window.ColorPicker;
@@ -294,8 +328,12 @@
                 return;
             }
 
+            // If no color is set yet, use a default color
+            // This ensures character-level highlighting is always visible
+            const highlightColor = this.characterDiffHighlightColor || '#FFD700';
+
             // Enhance the color for better contrast
-            const enhancedColor = this.enhanceColorContrast(this.characterDiffHighlightColor);
+            const enhancedColor = this.enhanceColorContrast(highlightColor);
 
             // Create or update the style element for custom colors
             let styleEl = document.getElementById('custom-highlight-styles');
@@ -915,6 +953,10 @@
                 return this.escapeHtml(content || '');
             }
 
+            // If no color is set yet, use a default color for highlighting
+            // This ensures character-level highlighting is always visible
+            const highlightColor = this.characterDiffHighlightColor || '#FFD700';
+
             // For added/removed lines, compute character diff
             const charDiff = this.computeCharacterDiff(
                 type === 'removed' ? content : originalContent,
@@ -922,7 +964,7 @@
             );
 
             // Enhance the color for better contrast
-            const enhancedColor = this.enhanceColorContrast(this.characterDiffHighlightColor);
+            const enhancedColor = this.enhanceColorContrast(highlightColor);
 
             // Convert the diff to HTML
             return charDiff.map(segment => {

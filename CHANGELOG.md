@@ -2,6 +2,12 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.19] - 2025-05-17
+
+### Fixes
+- Fixed a bug with the character level diff highlighter not using the correct color set by the user in settings.
+- Fixed a bug with the diff view character level color selected wasnt being persisted between different diff view sessions.
+
 ## [0.0.18] - 2025-05-16
 
 ### ✨ New Features: Enhanced Diff Controls

@@ -9,12 +9,27 @@ export class SnapshotDiffWebviewProvider {
     private _snapshotName: string = '';
     private _timestamp: number = 0;
     private notificationManager: NotificationManager = NotificationManager.getInstance();
+    private _configChangeListener: vscode.Disposable | undefined;
 
     constructor(
         extensionUri: vscode.Uri,
         private readonly onRestoreFile: (filePath: string) => Promise<void>
     ) {
         this._extensionUri = extensionUri;
+
+        // Add configuration change listener to detect changes to the character diff highlight color
+        this._configChangeListener = vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('localSnapshots.characterDiffHighlightColor') && this._panel) {
+                const config = vscode.workspace.getConfiguration('localSnapshots');
+                const characterDiffHighlightColor = config.get('characterDiffHighlightColor');
+
+                // Send the updated color to the webview
+                this._panel.webview.postMessage({
+                    type: 'updateHighlightColor',
+                    color: characterDiffHighlightColor
+                });
+            }
+        });
     }
 
     public get snapshotName(): string {
@@ -35,7 +50,6 @@ export class SnapshotDiffWebviewProvider {
         const enableTextWrapping = config.get('enableTextWrapping', false);
         const enableLineLevelDiff = config.get('enableLineLevelDiff', true);
         const enableCharacterLevelDiff = config.get('enableCharacterLevelDiff', true);
-        const characterDiffHighlightColor = config.get('characterDiffHighlightColor', '#FFD700');
 
         // If we already have a panel, show it
         if (this._panel) {
@@ -123,6 +137,10 @@ export class SnapshotDiffWebviewProvider {
         }));
 
 
+        // Make sure we're sending the character diff highlight color
+        // This ensures the diff view always has the current color from settings
+        const currentCharacterDiffHighlightColor = config.get('characterDiffHighlightColor');
+
         // Send the diff data to the webview
         await this._panel.webview.postMessage({
             type: 'showDiff',
@@ -132,7 +150,7 @@ export class SnapshotDiffWebviewProvider {
             enableTextWrapping,
             enableLineLevelDiff,
             enableCharacterLevelDiff,
-            characterDiffHighlightColor
+            characterDiffHighlightColor: currentCharacterDiffHighlightColor
         });
     }
 
@@ -260,5 +278,21 @@ export class SnapshotDiffWebviewProvider {
             text += possible.charAt(Math.floor(Math.random() * possible.length));
         }
         return text;
+    }
+
+    /**
+     * Dispose of the webview panel and clean up resources
+     */
+    public dispose() {
+        if (this._panel) {
+            this._panel.dispose();
+            this._panel = undefined;
+        }
+
+        // Clean up the configuration change listener
+        if (this._configChangeListener) {
+            this._configChangeListener.dispose();
+            this._configChangeListener = undefined;
+        }
     }
 }

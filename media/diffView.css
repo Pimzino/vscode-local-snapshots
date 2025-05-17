@@ -507,8 +507,7 @@ body {
 
 /* Character-level diff highlighting */
 .char-added {
-    /* Default styling - will be overridden by custom color */
-    background-color: #FFD700; /* Gold color without transparency */
+    /* Base styling - color will be set dynamically by JavaScript */
     border-radius: 2px;
     padding: 0 1px;
     margin: 0 -1px;
@@ -524,8 +523,7 @@ body {
 }
 
 .char-removed {
-    /* Default styling - will be overridden by custom color */
-    background-color: #FFD700; /* Gold color without transparency */
+    /* Base styling - color will be set dynamically by JavaScript */
     border-radius: 2px;
     padding: 0 1px;
     margin: 0 -1px;
