@@ -7,3 +7,4 @@ node_modules
 .cursorrules
 advertisement.node_modules
 *.vsix
+docs
