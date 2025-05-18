@@ -245,8 +245,20 @@ Create your own keyboard shortcuts for any of these commands:
 - `local-snapshots.snapshotDirectory`: Take a snapshot of a directory
 
 ## Requirements
-- VS Code version 1.74.0 or higher
+- VS Code version 1.90.0 or higher
 - No additional dependencies required
+
+## Storage & Privacy
+
+Local Snapshots lives up to its name by storing all data locally on your machine:
+
+- **100% Local Storage**: All snapshots are stored in VS Code's built-in global state storage system, never leaving your device
+- **Per-Workspace Isolation**: Snapshots are tied to your specific workspace using the key pattern `workspaceSnapshots-{workspacePath}`
+- **Self-Contained**: No external services, cloud storage, or telemetry collection
+- **Your Data Stays Yours**: Snapshots are only accessible within your VS Code environment
+- **Limited by Design**: Storage is managed via configurable limits to prevent excessive disk usage
+
+When you uninstall the extension, all snapshot data is automatically removed from your system.
 
 ## Known Issues & Feedback
 Please report any issues or feature suggestions by creating a new issue on our [GitHub Issues page](https://github.com/Pimzino/vscode-local-snapshots/issues). Also, if you enjoy using the extension, please consider giving the repository a star on [GitHub](https://github.com/Pimzino/vscode-local-snapshots) to show your support!
