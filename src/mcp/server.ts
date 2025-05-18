@@ -8,6 +8,7 @@ import { MCPInitResponse, MCPServerInfo, MCPCapabilities } from './types';
 import { execSync } from 'child_process';
 import { findAvailablePort, DEFAULT_PORTS } from '../utils/portUtils';
 import { NotificationManager } from '../utils/NotificationManager';
+import { Logger } from '../utils/Logger';
 
 // Express types
 type Request = express.Request;
@@ -22,18 +23,19 @@ export class MCPServer {
     private sessions: Map<string, { sseRes: Response, initialized: boolean }> = new Map();
     private port: number;
     private notificationManager: NotificationManager = NotificationManager.getInstance();
+    private logger: Logger = Logger.getInstance();
 
     constructor(private snapshotManager: SnapshotManager) {
-        console.log('[MCP] Initializing MCP server');
-        console.log('[MCP] Express module:', typeof express);
+        this.logger.info('Initializing MCP server', 'MCP');
+        this.logger.info(`Express module: ${typeof express}`, 'MCP');
 
         if (!express) {
-            console.error('[MCP] Express module not properly loaded!');
+            this.logger.error('Express module not properly loaded!', 'MCP');
             throw new Error('Express module not properly loaded. This is likely a dependency issue.');
         }
 
         this.app = express();
-        console.log('[MCP] Express app created successfully');
+        this.logger.info('Express app created successfully', 'MCP');
         this.port = DEFAULT_PORTS.MCP; // Default port
 
         // Add CORS middleware
@@ -50,7 +52,7 @@ export class MCPServer {
 
         // Add error handling middleware
         this.app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
-            console.error('MCP Server Error:', err);
+            this.logger.error('Server Error', 'MCP', err);
             res.status(500).json({
                 jsonrpc: '2.0',
                 id: null,
@@ -77,7 +79,7 @@ export class MCPServer {
     private setupRoutes() {
         // SSE endpoint
         this.app.get('/sse', (req: Request, res: Response) => {
-            console.log('[MCP] SSE connection established');
+            this.logger.info('SSE connection established', 'MCP');
 
             // Set SSE headers
             res.setHeader('Content-Type', 'text/event-stream');
@@ -87,7 +89,7 @@ export class MCPServer {
             // Generate a session ID
             const sessionId = uuidv4();
             this.sessions.set(sessionId, { sseRes: res, initialized: false });
-            console.log(`[MCP] Created session: ${sessionId}`);
+            this.logger.info(`Created session: ${sessionId}`, 'MCP');
 
             // Send the endpoint event
             res.write(`event: endpoint\n`);
@@ -102,14 +104,14 @@ export class MCPServer {
             req.on('close', () => {
                 clearInterval(heartbeat);
                 this.sessions.delete(sessionId);
-                console.log(`[MCP] Session closed: ${sessionId}`);
+                this.logger.info(`Session closed: ${sessionId}`, 'MCP');
             });
         });
 
         // JSON-RPC message endpoint
         this.app.post('/sse/messages', async (req: Request, res: Response) => {
             const sessionId = req.query.session_id as string;
-            console.log(`[MCP] Received message for session: ${sessionId}`, req.body);
+            this.logger.info(`Received message for session: ${sessionId}`, 'MCP', req.body);
 
             if (!sessionId) {
                 return res.status(400).json({
@@ -174,7 +176,7 @@ export class MCPServer {
     private async handleRpcRequest(sessionId: string, sseRes: Response, rpc: any) {
         const session = this.sessions.get(sessionId);
         if (!session) {
-            console.error(`[MCP] Session not found: ${sessionId}`);
+            this.logger.error(`Session not found: ${sessionId}`, 'MCP');
             return;
         }
 
@@ -285,7 +287,7 @@ export class MCPServer {
 
                 case 'notifications/initialized': {
                     // No response needed for notifications
-                    console.log(`[MCP] Client initialized for session: ${sessionId}`);
+                    this.logger.info(`Client initialized for session: ${sessionId}`, 'MCP');
                     break;
                 }
 
@@ -303,7 +305,7 @@ export class MCPServer {
                 }
             }
         } catch (error) {
-            console.error(`[MCP] Error handling request:`, error);
+            this.logger.error('Error handling request', 'MCP', error);
 
             // Send error response via SSE
             this.sendSseMessage(sseRes, {
@@ -341,17 +343,17 @@ export class MCPServer {
      * @returns Promise that resolves to the port the server is running on
      */
     public async start(): Promise<number> {
-        console.log(`[MCP] Attempting to start MCP server`);
+        this.logger.info('Attempting to start MCP server', 'MCP');
 
         try {
             // Find an available port, starting with the default
             const port = await findAvailablePort(DEFAULT_PORTS.MCP);
-            console.log(`[MCP] Found available port: ${port}`);
+            this.logger.info(`Found available port: ${port}`, 'MCP');
 
             // Start the server on the available port
             return await this.startOnPort(port);
         } catch (error) {
-            console.error(`[MCP] Failed to start server:`, error);
+            this.logger.error('Failed to start server', 'MCP', error);
             throw error;
         }
     }
@@ -367,15 +369,15 @@ export class MCPServer {
         return new Promise((resolve, reject) => {
             try {
                 // Log the express app configuration
-                console.log(`[MCP] Express app created with ${Object.keys(this.app).length} properties`);
-                console.log(`[MCP] Middleware count: ${(this.app as any)._router?.stack?.length || 'unknown'}`);
-                console.log(`[MCP] Active sessions: ${this.sessions.size}`);
+                this.logger.info(`Express app created with ${Object.keys(this.app).length} properties`, 'MCP');
+                this.logger.info(`Middleware count: ${(this.app as any)._router?.stack?.length || 'unknown'}`, 'MCP');
+                this.logger.info(`Active sessions: ${this.sessions.size}`, 'MCP');
 
                 // Create the server
-                console.log(`[MCP] Creating HTTP server for port ${port}`);
+                this.logger.info(`Creating HTTP server for port ${port}`, 'MCP');
                 this.server = this.app.listen(port, async () => {
-                    console.log(`[MCP] Server successfully started on port ${port}`);
-                    console.log(`[MCP] Server object:`, this.server ? 'Created successfully' : 'Failed to create');
+                    this.logger.info(`Server successfully started on port ${port}`, 'MCP');
+                    this.logger.info(`Server object: ${this.server ? 'Created successfully' : 'Failed to create'}`, 'MCP');
 
                     // Show a notification to the user
                     if (port !== DEFAULT_PORTS.MCP) {
@@ -405,8 +407,8 @@ export class MCPServer {
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                 const errorStack = error instanceof Error ? error.stack : 'No stack trace';
-                console.error(`[MCP] Server start error: ${errorMessage}`);
-                console.error(`[MCP] Error stack: ${errorStack}`);
+                this.logger.error('Server start error', 'MCP', errorMessage);
+                this.logger.error('Error stack', 'MCP', errorStack);
                 reject(error);
             }
         });
@@ -419,7 +421,7 @@ export class MCPServer {
         if (this.server) {
             this.server.close();
             this.server = null;
-            console.log('[MCP] Server stopped');
+            this.logger.info('Server stopped', 'MCP');
         }
     }
 }

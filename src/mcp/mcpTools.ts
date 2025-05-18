@@ -2,6 +2,7 @@
 import * as vscode from 'vscode';
 import { SnapshotManager } from '../managers/SnapshotManager';
 import { MCPTool, MCPResponse, MCPToolCallResponse } from './types';
+import { Logger } from '../utils/Logger';
 
 /**
  * Registers MCP tools for the Local Snapshots extension
@@ -44,7 +45,8 @@ export function registerMCPTools(snapshotManager: SnapshotManager): vscode.Dispo
                             throw new Error(`Unknown tool: ${tool.name}`);
                     }
                 } catch (error) {
-                    console.error(`Error executing MCP tool ${tool.name}:`, error);
+                    const logger = Logger.getInstance();
+                    logger.error(`Error executing MCP tool ${tool.name}`, 'MCPTools', error);
                     return {
                         success: false,
                         error: error instanceof Error ? error.message : 'Unknown error'
@@ -58,7 +60,8 @@ export function registerMCPTools(snapshotManager: SnapshotManager): vscode.Dispo
     // Register a command to get the tool definitions (for AI tools to discover available commands)
     disposables.push(
         vscode.commands.registerCommand('local-snapshots.mcp.getTools', () => {
-            console.log('MCP getTools command executed');
+            const logger = Logger.getInstance();
+            logger.info('getTools command executed', 'MCPTools');
             const response: MCPResponse = {
                 schemaVersion: 1,
                 tools: tools.map(tool => ({
@@ -121,7 +124,8 @@ export async function handleToolCall(
                 throw new Error(`Unknown tool: ${toolName}`);
         }
     } catch (error) {
-        console.error(`Error executing MCP tool ${toolName}:`, error);
+        const logger = Logger.getInstance();
+        logger.error(`Error executing MCP tool ${toolName}`, 'MCPTools', error);
         return {
             content: [
                 {

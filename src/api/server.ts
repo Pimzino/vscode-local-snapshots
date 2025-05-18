@@ -4,28 +4,30 @@ import * as vscode from 'vscode';
 import { SnapshotManager } from '../managers/SnapshotManager';
 import { findAvailablePort, DEFAULT_PORTS } from '../utils/portUtils';
 import { NotificationManager } from '../utils/NotificationManager';
+import { Logger } from '../utils/Logger';
 
 export class ApiServer {
     private app: Express;
     private server: any;
     private port: number | undefined;
     private notificationManager: NotificationManager = NotificationManager.getInstance();
+    private logger: Logger = Logger.getInstance();
 
     constructor(private snapshotManager: SnapshotManager) {
-        console.log('[API] Initializing API server');
-        console.log('[API] Express module:', typeof express);
+        this.logger.info('Initializing API server', 'API');
+        this.logger.info(`Express module: ${typeof express}`, 'API');
 
         if (!express) {
-            console.error('[API] Express module not properly loaded!');
+            this.logger.error('Express module not properly loaded!', 'API');
             throw new Error('Express module not properly loaded. This is likely a dependency issue.');
         }
 
         this.app = express();
-        console.log('[API] Express app created successfully');
+        this.logger.info('Express app created successfully', 'API');
 
         // Add error handling middleware
         this.app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
-            console.error('API Error:', err);
+            this.logger.error('API Error', 'API', err);
             res.status(500).json({
                 error: 'Internal Server Error',
                 details: err instanceof Error ? err.message : 'Unknown error'
@@ -79,7 +81,7 @@ export class ApiServer {
                     message: `Snapshot '${name}' created successfully`
                 });
             } catch (error) {
-                console.error('Snapshot creation error:', error);
+                this.logger.error('Snapshot creation error', 'API', error);
                 res.status(500).json({
                     error: 'Failed to create snapshot',
                     details: error instanceof Error ? error.message : 'Unknown error'
@@ -96,7 +98,7 @@ export class ApiServer {
                     snapshots
                 });
             } catch (error) {
-                console.error('Get snapshots error:', error);
+                this.logger.error('Get snapshots error', 'API', error);
                 res.status(500).json({
                     error: 'Failed to get snapshots',
                     details: error instanceof Error ? error.message : 'Unknown error'
@@ -131,17 +133,17 @@ export class ApiServer {
      * @returns Promise that resolves to the port the server is running on
      */
     public async start(): Promise<number> {
-        console.log(`[API] Attempting to start API server`);
+        this.logger.info('Attempting to start API server', 'API');
 
         try {
             // Find an available port, starting with the default
             const port = await findAvailablePort(DEFAULT_PORTS.API);
-            console.log(`[API] Found available port: ${port}`);
+            this.logger.info(`Found available port: ${port}`, 'API');
 
             // Start the server on the available port
             return await this.startOnPort(port);
         } catch (error) {
-            console.error(`[API] Failed to start server:`, error);
+            this.logger.error('Failed to start server', 'API', error);
             throw error;
         }
     }
@@ -155,13 +157,13 @@ export class ApiServer {
         return new Promise((resolve, reject) => {
             try {
                 // Log the express app configuration
-                console.log(`[API] Express app created with ${Object.keys(this.app).length} properties`);
-                console.log(`[API] Middleware count: ${(this.app as any)._router?.stack?.length || 'unknown'}`);
+                this.logger.info(`Express app created with ${Object.keys(this.app).length} properties`, 'API');
+                this.logger.info(`Middleware count: ${(this.app as any)._router?.stack?.length || 'unknown'}`, 'API');
 
                 // Create the server
-                console.log(`[API] Creating HTTP server for port ${port}`);
+                this.logger.info(`Creating HTTP server for port ${port}`, 'API');
                 this.server = this.app.listen(port, async () => {
-                    console.log(`[API] Server successfully started on port ${port}`);
+                    this.logger.info(`Server successfully started on port ${port}`, 'API');
 
                     // Store the port
                     this.port = port;
@@ -188,14 +190,14 @@ export class ApiServer {
                         message: error.message,
                         stack: error.stack
                     };
-                    console.error('[API] Server error:', JSON.stringify(errorDetails, null, 2));
+                    this.logger.error('Server error', 'API', JSON.stringify(errorDetails, null, 2));
                     reject(error);
                 });
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                 const errorStack = error instanceof Error ? error.stack : 'No stack trace';
-                console.error(`[API] Server start error: ${errorMessage}`);
-                console.error(`[API] Error stack: ${errorStack}`);
+                this.logger.error('Server start error', 'API', errorMessage);
+                this.logger.error('Error stack', 'API', errorStack);
                 reject(error);
             }
         });
@@ -208,7 +210,7 @@ export class ApiServer {
         if (this.server) {
             this.server.close();
             this.server = null;
-            console.log('[API] Server stopped');
+            this.logger.info('Server stopped', 'API');
 
             // Clear the port
             this.port = undefined;

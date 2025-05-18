@@ -2,6 +2,15 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.20] - 2025-05-18
+
+### Improved
+- Implemented centralized logging system:
+  - Added dedicated Output panel channel "Local Snapshots" for all extension logs
+  - Improved error message readability with structured formatting
+  - Better diagnostic information for troubleshooting
+  - More consistent log messages across all extension components
+
 ## [0.0.19] - 2025-05-17
 
 ### Fixes

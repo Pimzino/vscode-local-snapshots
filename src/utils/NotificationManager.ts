@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { Logger } from './Logger';
 
 // Create a global variable to store the singleton instance
 // This ensures it works correctly even when bundled by webpack
@@ -23,11 +24,12 @@ export class NotificationManager {
     private readonly MAX_NOTIFICATIONS_PER_MINUTE = 10;
     private readonly notificationTimestamps: number[] = [];
     private instanceId: string;
+    private logger: Logger = Logger.getInstance();
 
     private constructor() {
         // Private constructor to enforce singleton
         this.instanceId = Date.now().toString();
-        console.log(`[NotificationManager] Created new instance with ID: ${this.instanceId}`);
+        this.logger.info(`Created new instance with ID: ${this.instanceId}`, 'NotificationManager');
     }
 
     /**
@@ -35,10 +37,9 @@ export class NotificationManager {
      */
     public static getInstance(): NotificationManager {
         if (!global.notificationManagerInstance) {
-            console.log('[NotificationManager] Creating new global instance');
+            // We can't use the logger here since it would cause a circular dependency
+            // The instance will log once created in the constructor
             global.notificationManagerInstance = new NotificationManager();
-        } else {
-            console.log(`[NotificationManager] Returning existing instance with ID: ${global.notificationManagerInstance.instanceId}`);
         }
         return global.notificationManagerInstance;
     }
@@ -98,12 +99,12 @@ export class NotificationManager {
         modal: boolean = false
     ): Promise<string | undefined> {
         try {
-            console.log(`[NotificationManager ${this.instanceId}] Showing notification: ${message} (type: ${type}, modal: ${modal})`);
+            this.logger.info(`Showing notification: ${message} (type: ${type}, modal: ${modal})`, 'NotificationManager');
 
             // Check if notifications are disabled in settings
             const config = vscode.workspace.getConfiguration('localSnapshots');
             const quietMode = config.get<boolean>('quietMode', false);
-            console.log(`[NotificationManager ${this.instanceId}] Quiet mode: ${quietMode}`);
+            this.logger.info(`Quiet mode: ${quietMode}`, 'NotificationManager');
 
             // Check if this is a delete confirmation message (these should never be suppressed)
             const isDeleteConfirmation =
@@ -113,13 +114,13 @@ export class NotificationManager {
             if (quietMode && type === 'info' && !isDeleteConfirmation && !modal) {
                 // Skip non-critical notifications in quiet mode, but always show delete confirmations
                 // and any modal dialogs as these are considered important
-                console.log(`[NotificationManager ${this.instanceId}] Suppressed in quiet mode: ${message}`);
+                this.logger.info(`Suppressed in quiet mode: ${message}`, 'NotificationManager');
                 return undefined;
             }
 
             // Check if we're already showing a notification to prevent recursion
             if (this.isShowingNotification) {
-                console.log(`[NotificationManager ${this.instanceId}] Already showing notification, queueing: ${message}`);
+                this.logger.info(`Already showing notification, queueing: ${message}`, 'NotificationManager');
                 this.notificationQueue.push({ message, type, options, modal });
                 return undefined;
             }
@@ -127,7 +128,7 @@ export class NotificationManager {
             // Check if we should throttle based on time
             const now = Date.now();
             if (now - this.lastNotificationTime < this.THROTTLE_INTERVAL_MS) {
-                console.log(`[NotificationManager ${this.instanceId}] Throttling notification: ${message}`);
+                this.logger.info(`Throttling notification: ${message}`, 'NotificationManager');
                 this.notificationQueue.push({ message, type, options, modal });
                 return undefined;
             }
@@ -141,7 +142,7 @@ export class NotificationManager {
             }
 
             if (this.notificationTimestamps.length > this.MAX_NOTIFICATIONS_PER_MINUTE) {
-                console.log(`[NotificationManager ${this.instanceId}] Too many notifications, suppressing: ${message}`);
+                this.logger.info(`Too many notifications, suppressing: ${message}`, 'NotificationManager');
                 // Only queue critical notifications when rate limited
                 if (type === 'error') {
                     this.notificationQueue.push({ message, type, options, modal });
@@ -157,37 +158,37 @@ export class NotificationManager {
             // Show the notification based on type
             let result: string | undefined;
             try {
-                console.log(`[NotificationManager ${this.instanceId}] About to show ${type} notification: "${message}"`);
+                this.logger.info(`About to show ${type} notification: "${message}"`, 'NotificationManager');
 
                 if (type === 'info') {
                     if (options && options.length > 0) {
-                        console.log(`[NotificationManager ${this.instanceId}] Showing info message with options:`, options);
+                        this.logger.info(`Showing info message with options: ${options.join(', ')}`, 'NotificationManager');
                         result = await vscode.window.showInformationMessage(message, { modal }, ...options);
                     } else {
-                        console.log(`[NotificationManager ${this.instanceId}] Showing info message without options`);
+                        this.logger.info('Showing info message without options', 'NotificationManager');
                         await vscode.window.showInformationMessage(message, { modal });
                     }
                 } else if (type === 'warning') {
                     if (options && options.length > 0) {
-                        console.log(`[NotificationManager ${this.instanceId}] Showing warning message with options:`, options);
+                        this.logger.info(`Showing warning message with options: ${options.join(', ')}`, 'NotificationManager');
                         result = await vscode.window.showWarningMessage(message, { modal }, ...options);
                     } else {
-                        console.log(`[NotificationManager ${this.instanceId}] Showing warning message without options`);
+                        this.logger.info('Showing warning message without options', 'NotificationManager');
                         await vscode.window.showWarningMessage(message, { modal });
                     }
                 } else if (type === 'error') {
                     if (options && options.length > 0) {
-                        console.log(`[NotificationManager ${this.instanceId}] Showing error message with options:`, options);
+                        this.logger.info(`Showing error message with options: ${options.join(', ')}`, 'NotificationManager');
                         result = await vscode.window.showErrorMessage(message, { modal }, ...options);
                     } else {
-                        console.log(`[NotificationManager ${this.instanceId}] Showing error message without options`);
+                        this.logger.info('Showing error message without options', 'NotificationManager');
                         await vscode.window.showErrorMessage(message, { modal });
                     }
                 }
 
-                console.log(`[NotificationManager ${this.instanceId}] Notification shown successfully, result:`, result);
+                this.logger.info(`Notification shown successfully, result: ${result || 'undefined'}`, 'NotificationManager');
             } catch (error) {
-                console.error(`[NotificationManager ${this.instanceId}] Error showing notification: ${error}`);
+                this.logger.error('Error showing notification', 'NotificationManager', error);
             }
 
             // Reset flag
@@ -200,7 +201,7 @@ export class NotificationManager {
         } catch (error) {
             // Ensure flag is reset even if an error occurs
             this.isShowingNotification = false;
-            console.error(`[NotificationManager] Notification error: ${error}`);
+            this.logger.error('Notification error', 'NotificationManager', error);
             return undefined;
         }
     }
@@ -210,17 +211,17 @@ export class NotificationManager {
      */
     private async processQueue(): Promise<void> {
         if (this.notificationQueue.length === 0) {
-            console.log(`[NotificationManager ${this.instanceId}] No notifications in queue to process`);
+            this.logger.debug(`No notifications in queue to process`, 'NotificationManager');
             return;
         }
 
-        console.log(`[NotificationManager ${this.instanceId}] Processing queue with ${this.notificationQueue.length} notifications`);
+        this.logger.info(`Processing queue with ${this.notificationQueue.length} notifications`, 'NotificationManager');
 
         // Wait a bit before showing the next notification
         setTimeout(async () => {
             const next = this.notificationQueue.shift();
             if (next) {
-                console.log(`[NotificationManager ${this.instanceId}] Processing queued notification: ${next.message}`);
+                this.logger.info(`Processing queued notification: ${next.message}`, 'NotificationManager');
                 await this.showNotification(next.message, next.type, next.options, next.modal);
             }
         }, this.THROTTLE_INTERVAL_MS);

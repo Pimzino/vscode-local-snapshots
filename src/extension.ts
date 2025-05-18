@@ -8,12 +8,23 @@ import { ApiServer } from './api/server';
 import { MCPServer } from './mcp/server';
 import { registerMCPTools } from './mcp/mcpTools';
 import { NotificationManager } from './utils/NotificationManager';
+import { Logger } from './utils/Logger';
 import path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
-	console.log('==============================================');
-	console.log('Local Snapshots extension is now active!');
-	console.log('==============================================');
+	// Initialize logger
+	const logger = Logger.getInstance();
+	logger.info('==============================================');
+	logger.info('Local Snapshots extension is now active!');
+	logger.info('==============================================');
+
+	// Add logger to extension subscriptions so it can be disposed
+	context.subscriptions.push({
+		dispose: () => {
+			logger.info('Disposing logger', 'Extension');
+			logger.dispose();
+		}
+	});
 
 	// Initialize the notification manager and ensure it's properly set up
 	const notificationManager = NotificationManager.getInstance();
@@ -21,10 +32,10 @@ export function activate(context: vscode.ExtensionContext) {
 	// Test notification to verify the notification system is working
 	setTimeout(async () => {
 		try {
-			console.log('[Extension] Sending test notification to verify notification system');
+			logger.info('Sending test notification to verify notification system', 'Extension');
 			await notificationManager.showInformationMessage('Local Snapshots extension is ready', undefined, false);
 		} catch (error) {
-			console.error('[Extension] Error sending test notification:', error);
+			logger.error('Error sending test notification', 'Extension', error);
 		}
 	}, 3000);
 	const snapshotManager = new SnapshotManager(context);
@@ -83,17 +94,17 @@ export function activate(context: vscode.ExtensionContext) {
 		const config = vscode.workspace.getConfiguration('localSnapshots');
 		const isEnabled = config.get<boolean>('enableApiServer', false);
 
-		console.log(`[Extension] updateApiServer called - isEnabled: ${isEnabled}`);
+		logger.info(`updateApiServer called - isEnabled: ${isEnabled}`, 'Extension');
 
 		// Skip if the settings provider is currently updating this setting
 		if (settingsProvider.isUpdatingServerSetting) {
-			console.log('[Extension] Skipping API server update because settings provider is updating a server setting');
+			logger.info('Skipping API server update because settings provider is updating a server setting', 'Extension');
 			return;
 		}
 
 		// Stop existing server if it's running
 		if (apiServer) {
-			console.log('[Extension] Stopping existing API server');
+			logger.info('Stopping existing API server', 'Extension');
 			apiServer.stop();
 			apiServer = undefined;
 		}
@@ -103,32 +114,32 @@ export function activate(context: vscode.ExtensionContext) {
 
 		// Start new server if enabled
 		if (isEnabled) {
-			console.log('[Extension] API server is enabled, attempting to start');
+			logger.info('API server is enabled, attempting to start', 'Extension');
 			try {
-				console.log('[Extension] Creating new ApiServer instance');
+				logger.info('Creating new ApiServer instance', 'Extension');
 				apiServer = new ApiServer(snapshotManager);
 
-				console.log('[Extension] Calling apiServer.start()');
+				logger.info('Calling apiServer.start()', 'Extension');
 				const actualPort = await apiServer.start();
 
 				// Update status bar with actual port
 				updateApiStatusBar(true, actualPort);
 
-				console.log(`[Extension] API server successfully started on port ${actualPort}`);
-				console.log(`[Extension] API server object:`, apiServer ? 'Created successfully' : 'Failed to create');
+				logger.info(`API server successfully started on port ${actualPort}`, 'Extension');
+				logger.info(`API server object: ${apiServer ? 'Created successfully' : 'Failed to create'}`, 'Extension');
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 				const errorStack = error instanceof Error ? error.stack : 'No stack trace';
-				console.error('[Extension] Failed to start API server:', errorMessage);
-				console.error('[Extension] Error stack:', errorStack);
+				logger.error('Failed to start API server', 'Extension', errorMessage);
+				logger.error('Error stack', 'Extension', errorStack);
 
-				const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
+				const detailedError = `${errorMessage}\n\nCheck the Output panel > Local Snapshots for more details.`;
 				await notificationManager.showErrorMessage(`Failed to start API server: ${detailedError}`);
-				console.log('[Extension] Disabling API server due to startup error');
+				logger.info('Disabling API server due to startup error', 'Extension');
 				await config.update('enableApiServer', false, vscode.ConfigurationTarget.Global);
 			}
 		} else {
-			console.log('[Extension] API server is disabled');
+			logger.info('API server is disabled', 'Extension');
 		}
 	}
 
@@ -137,17 +148,17 @@ export function activate(context: vscode.ExtensionContext) {
 		const config = vscode.workspace.getConfiguration('localSnapshots');
 		const isEnabled = config.get<boolean>('enableMcpServer', false);
 
-		console.log(`[Extension] updateMcpServer called - isEnabled: ${isEnabled}`);
+		logger.info(`updateMcpServer called - isEnabled: ${isEnabled}`, 'Extension');
 
 		// Skip if the settings provider is currently updating this setting
 		if (settingsProvider.isUpdatingServerSetting) {
-			console.log('[Extension] Skipping MCP server update because settings provider is updating a server setting');
+			logger.info('Skipping MCP server update because settings provider is updating a server setting', 'Extension');
 			return;
 		}
 
 		// Stop existing server if it's running
 		if (mcpServer) {
-			console.log('[Extension] Stopping existing MCP server');
+			logger.info('Stopping existing MCP server', 'Extension');
 			mcpServer.stop();
 			mcpServer = undefined;
 		}
@@ -157,32 +168,32 @@ export function activate(context: vscode.ExtensionContext) {
 
 		// Start new server if enabled
 		if (isEnabled) {
-			console.log('[Extension] MCP server is enabled, attempting to start');
+			logger.info('MCP server is enabled, attempting to start', 'Extension');
 			try {
-				console.log('[Extension] Creating new MCPServer instance');
+				logger.info('Creating new MCPServer instance', 'Extension');
 				mcpServer = new MCPServer(snapshotManager);
 
-				console.log('[Extension] Calling mcpServer.start()');
+				logger.info('Calling mcpServer.start()', 'Extension');
 				const actualPort = await mcpServer.start();
 
 				// Update status bar with actual port
 				updateMcpStatusBar(true, actualPort);
 
-				console.log(`[Extension] MCP server successfully started on port ${actualPort}`);
-				console.log(`[Extension] MCP server object:`, mcpServer ? 'Created successfully' : 'Failed to create');
+				logger.info(`MCP server successfully started on port ${actualPort}`, 'Extension');
+				logger.info(`MCP server object: ${mcpServer ? 'Created successfully' : 'Failed to create'}`, 'Extension');
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 				const errorStack = error instanceof Error ? error.stack : 'No stack trace';
-				console.error('[Extension] Failed to start MCP server:', errorMessage);
-				console.error('[Extension] Error stack:', errorStack);
+				logger.error('Failed to start MCP server', 'Extension', errorMessage);
+				logger.error('Error stack', 'Extension', errorStack);
 
-				const detailedError = `${errorMessage}\n\nCheck the developer console for more details (Help > Toggle Developer Tools).`;
+				const detailedError = `${errorMessage}\n\nCheck the Output panel > Local Snapshots for more details.`;
 				await notificationManager.showErrorMessage(`Failed to start MCP server: ${detailedError}`);
-				console.log('[Extension] Disabling MCP server due to startup error');
+				logger.info('Disabling MCP server due to startup error', 'Extension');
 				await config.update('enableMcpServer', false, vscode.ConfigurationTarget.Global);
 			}
 		} else {
-			console.log('[Extension] MCP server is disabled');
+			logger.info('MCP server is disabled', 'Extension');
 		}
 	}
 
@@ -219,22 +230,22 @@ export function activate(context: vscode.ExtensionContext) {
 	// Watch for configuration changes
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(e => {
-			console.log('[Extension] Configuration changed:', e);
+			logger.info('Configuration changed', 'Extension', e);
 
 			// Skip if the settings provider is currently updating a server setting
 			if (settingsProvider.isUpdatingServerSetting) {
-				console.log('[Extension] Skipping configuration change event because settings provider is updating a server setting');
+				logger.info('Skipping configuration change event because settings provider is updating a server setting', 'Extension');
 				return;
 			}
 
 			if (e.affectsConfiguration('localSnapshots.enableApiServer') ||
 				e.affectsConfiguration('localSnapshots.apiPort')) {
-				console.log('[Extension] API server settings changed, updating server...');
+				logger.info('API server settings changed, updating server...', 'Extension');
 				updateApiServer();
 			}
 			if (e.affectsConfiguration('localSnapshots.enableMcpServer') ||
 				e.affectsConfiguration('localSnapshots.mcpPort')) {
-				console.log('[Extension] MCP server settings changed, updating server...');
+				logger.info('MCP server settings changed, updating server...', 'Extension');
 				updateMcpServer();
 			}
 		})
@@ -305,7 +316,7 @@ export function activate(context: vscode.ExtensionContext) {
 				await vscode.env.clipboard.writeText(rules.toString());
 				await notificationManager.showInformationMessage('AI Safety Rules copied to clipboard!');
 			} catch (error) {
-				console.error('Failed to copy rules:', error);
+				logger.error('Failed to copy rules', 'Extension', error);
 				await notificationManager.showErrorMessage('Failed to copy AI Safety Rules to clipboard');
 			}
 		})

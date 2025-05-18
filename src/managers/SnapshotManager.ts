@@ -5,6 +5,7 @@ import { SnapshotWebviewProvider } from '../views/SnapshotWebviewProvider';
 import { SnapshotDiffWebviewProvider } from '../views/SnapshotDiffWebviewProvider';
 import { SnapshotTreeWebviewProvider } from '../views/SnapshotTreeWebviewProvider';
 import { NotificationManager } from '../utils/NotificationManager';
+import { Logger } from '../utils/Logger';
 import ignore from 'ignore';
 
 // Constants for file processing
@@ -25,6 +26,7 @@ export class SnapshotManager {
   private statusBarItem: vscode.StatusBarItem;
   private countdownInterval?: NodeJS.Timeout;
   private gitignoreCache: Map<string, ReturnType<typeof ignore>> = new Map();
+  private logger: Logger = Logger.getInstance();
 
   private getBatchSize(): number {
     return vscode.workspace.getConfiguration('localSnapshots').get('batchSize', 50);
@@ -152,7 +154,7 @@ export class SnapshotManager {
     if (vscode.workspace.workspaceFolders) {
       for (const folder of vscode.workspace.workspaceFolders) {
         this.loadGitignore(folder.uri.fsPath).catch(error => {
-          console.error('Error loading .gitignore for workspace:', error);
+          this.logger.error('Error loading .gitignore for workspace', 'SnapshotManager', error);
         });
       }
     }
@@ -179,7 +181,7 @@ export class SnapshotManager {
           const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
           if (workspaceFolder) {
             this.loadGitignore(workspaceFolder.uri.fsPath).catch(error => {
-              console.error('Error reloading .gitignore:', error);
+              this.logger.error('Error reloading .gitignore', 'SnapshotManager', error);
             });
           }
         }
@@ -268,7 +270,7 @@ export class SnapshotManager {
 
         // If we still can't determine the workspace, log a warning and use the first workspace
         if (!workspaceFolder) {
-          console.warn(`Could not determine workspace for snapshot "${snapshot.name}" with ${snapshot.files.length} files. Using first workspace as fallback.`);
+          this.logger.warn(`Could not determine workspace for snapshot "${snapshot.name}" with ${snapshot.files.length} files. Using first workspace as fallback.`, 'SnapshotManager');
           workspaceFolder = workspaceFolders[0].uri.fsPath;
         }
 
@@ -296,9 +298,9 @@ export class SnapshotManager {
       // Mark migration as complete
       await this.context.globalState.update(this.MIGRATION_DONE_KEY, true);
 
-      console.log('Snapshot migration completed successfully');
+      this.logger.info('Snapshot migration completed successfully', 'SnapshotManager');
     } catch (error) {
-      console.error('Failed to migrate snapshots:', error);
+      this.logger.error('Failed to migrate snapshots', 'SnapshotManager', error);
       // Don't mark migration as done if it failed
     }
   }
@@ -332,7 +334,7 @@ export class SnapshotManager {
         const document = await vscode.workspace.openTextDocument(uri);
         return document.getText();
     } catch (error) {
-        console.error(`Failed to read file: ${uri.fsPath}`, error);
+        this.logger.error(`Failed to read file: ${uri.fsPath}`, 'SnapshotManager', error);
         throw error;
     }
   }
@@ -425,11 +427,11 @@ export class SnapshotManager {
                             return true; // Content changed
                         }
                     } catch (error) {
-                        console.error(`Failed to compare file: ${uri.fsPath}`, error);
+                        this.logger.error(`Failed to compare file: ${uri.fsPath}`, 'SnapshotManager', error);
                         continue;
                     }
                 } catch (error) {
-                    console.error(`Failed to process file: ${uri.fsPath}`, error);
+                    this.logger.error(`Failed to process file: ${uri.fsPath}`, 'SnapshotManager', error);
                     return true; // Consider changed if we can't read the file
                 }
             }
@@ -515,7 +517,7 @@ export class SnapshotManager {
         // Refresh the webview to show the new snapshot
         this.webviewProvider?.refreshList();
       } catch (error) {
-        console.error('Failed to create timed snapshot:', error);
+        this.logger.error('Failed to create timed snapshot', 'SnapshotManager', error);
         await this.notificationManager.showErrorMessage('Failed to create timed snapshot');
       }
     }, intervalSeconds * 1000);
@@ -552,7 +554,7 @@ export class SnapshotManager {
       }
       const key = event.document.uri.toString();
       this.pendingChanges.add(key);
-      console.log(`Change detected in ${event.document.fileName}`);
+      this.logger.debug(`Change detected in ${event.document.fileName}`, 'SnapshotManager');
     });
 
     // Listen for the will save event
@@ -563,18 +565,18 @@ export class SnapshotManager {
       const document = event.document;
       const key = document.uri.toString();
 
-      console.log(`Will save triggered for ${document.fileName}`);
-      console.log(`Has pending changes: ${this.pendingChanges.has(key)}`);
+      this.logger.debug(`Will save triggered for ${document.fileName}`, 'SnapshotManager');
+      this.logger.debug(`Has pending changes: ${this.pendingChanges.has(key)}`, 'SnapshotManager');
 
       if (this.pendingChanges.has(key)) {
         const currentState = this.documentStates.get(key);
         if (currentState) {
-          console.log('Creating snapshot before save');
+          this.logger.debug('Creating snapshot before save', 'SnapshotManager');
           await this.handlePreSaveSnapshot(document, currentState.content);
         }
         this.pendingChanges.delete(key);
       } else {
-        console.log('No snapshot needed - no pending changes');
+        this.logger.debug('No snapshot needed - no pending changes', 'SnapshotManager');
       }
 
       this.documentStates.set(key, {
@@ -585,7 +587,7 @@ export class SnapshotManager {
 
     // Initial state for all open documents
     vscode.workspace.textDocuments.forEach(doc => {
-      console.log(`Initializing state for ${doc.fileName}`);
+      this.logger.debug(`Initializing state for ${doc.fileName}`, 'SnapshotManager');
       this.documentStates.set(doc.uri.toString(), {
         content: doc.getText(),
         version: doc.version
@@ -594,7 +596,7 @@ export class SnapshotManager {
 
     // Track newly opened documents
     const openListener = vscode.workspace.onDidOpenTextDocument(doc => {
-      console.log(`Document opened: ${doc.fileName}`);
+      this.logger.debug(`Document opened: ${doc.fileName}`, 'SnapshotManager');
       this.documentStates.set(doc.uri.toString(), {
         content: doc.getText(),
         version: doc.version
@@ -603,7 +605,7 @@ export class SnapshotManager {
 
     // Clean up closed documents
     const closeListener = vscode.workspace.onDidCloseTextDocument(doc => {
-      console.log(`Document closed: ${doc.fileName}`);
+      this.logger.debug(`Document closed: ${doc.fileName}`, 'SnapshotManager');
       this.documentStates.delete(doc.uri.toString());
       this.pendingChanges.delete(doc.uri.toString());
     });
@@ -615,7 +617,7 @@ export class SnapshotManager {
     try {
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (!workspaceFolders) {
-        console.log('No workspace folders found');
+        this.logger.debug('No workspace folders found', 'SnapshotManager');
         return;
       }
 
@@ -626,32 +628,32 @@ export class SnapshotManager {
       if (this.isUntitledFile(document.uri)) {
         // For untitled files, use a special path format
         relativePath = this.getUntitledFilePath(document);
-        console.log(`Creating snapshot for untitled file: ${relativePath}`);
-        console.log(`Untitled file content length: ${previousContent ? previousContent.length : 0}`);
-        console.log(`Untitled file content preview: ${previousContent ? previousContent.substring(0, 50) : 'EMPTY'}`);
+        this.logger.debug(`Creating snapshot for untitled file: ${relativePath}`, 'SnapshotManager');
+        this.logger.debug(`Untitled file content length: ${previousContent ? previousContent.length : 0}`, 'SnapshotManager');
+        this.logger.debug(`Untitled file content preview: ${previousContent ? previousContent.substring(0, 50) : 'EMPTY'}`, 'SnapshotManager');
 
         // Double-check that we have content
         if (!previousContent || previousContent.length === 0) {
           // If previousContent is empty, get the current content
           previousContent = document.getText();
-          console.log(`Updated untitled file content length: ${previousContent.length}`);
+          this.logger.debug(`Updated untitled file content length: ${previousContent.length}`, 'SnapshotManager');
         }
       } else {
         // For regular files, use the standard relative path
         if (!document.uri.fsPath.startsWith(workspaceFolder.uri.fsPath)) {
-          console.log('File not in workspace');
+          this.logger.debug('File not in workspace', 'SnapshotManager');
           return;
         }
 
         relativePath = path.relative(workspaceFolder.uri.fsPath, document.uri.fsPath);
 
         if (this.shouldSkipFile(relativePath)) {
-          console.log(`Skipping file: ${relativePath}`);
+          this.logger.debug(`Skipping file: ${relativePath}`, 'SnapshotManager');
           return;
         }
       }
 
-      console.log(`Creating snapshot for ${relativePath}`);
+      this.logger.debug(`Creating snapshot for ${relativePath}`, 'SnapshotManager');
 
       const snapshotName = `${path.basename(document.fileName)} - ${this.formatTimestamp()}`;
       const snapshot: Snapshot = {
@@ -672,13 +674,13 @@ export class SnapshotManager {
       snapshots.push(snapshot);
       await this.saveSnapshots(snapshots);
 
-      console.log('Snapshot created successfully');
+      this.logger.debug('Snapshot created successfully', 'SnapshotManager');
 
       if (this.webviewProvider) {
         this.webviewProvider.refreshList();
       }
     } catch (error) {
-      console.error('Failed to create pre-save snapshot:', error);
+      this.logger.error('Failed to create pre-save snapshot', 'SnapshotManager', error);
     }
   }
 
@@ -933,7 +935,7 @@ export class SnapshotManager {
             };
             return snapshot;
           } catch (error) {
-            console.error(`Failed to process file: ${uri.fsPath}`, error);
+            this.logger.error(`Failed to process file: ${uri.fsPath}`, 'SnapshotManager', error);
             skippedFiles++;
             return null;
           }
@@ -1169,7 +1171,7 @@ export class SnapshotManager {
                         increment: (100 / totalOperations)
                     });
                 } catch (error) {
-                    console.error(`Failed to delete file: ${fullPath}`, error);
+                    this.logger.error(`Failed to delete file: ${fullPath}`, 'SnapshotManager', error);
                     await this.notificationManager.showErrorMessage(`Failed to delete file: ${fileToDelete}`);
                 }
             }
