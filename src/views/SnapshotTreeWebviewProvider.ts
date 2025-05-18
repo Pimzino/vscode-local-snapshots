@@ -70,7 +70,7 @@ export class SnapshotTreeWebviewProvider {
 	}
 
 	private async updateTreeContent(files: FileSnapshot[]): Promise<void> {
-		if (!this.panel) return;
+		if (!this.panel) {return;}
 
 		const codiconUri = this.panel.webview.asWebviewUri(
 			vscode.Uri.joinPath(this.extensionUri, 'media/codicons/codicon.css')

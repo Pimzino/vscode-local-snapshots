@@ -8,3 +8,4 @@ node_modules
 advertisement.node_modules
 *.vsix
 docs
+AGENT.md

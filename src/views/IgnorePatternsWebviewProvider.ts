@@ -16,7 +16,7 @@ export class IgnorePatternsWebviewProvider {
 
     private setupGitignoreWatcher() {
         const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) return;
+        if (!workspaceFolders) {return;}
 
         // Create a file system watcher for .gitignore files
         this.gitignoreWatcher = vscode.workspace.createFileSystemWatcher('**/.gitignore');
@@ -34,7 +34,7 @@ export class IgnorePatternsWebviewProvider {
 
     private async loadAllGitignorePatterns() {
         const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) return;
+        if (!workspaceFolders) {return;}
 
         for (const folder of workspaceFolders) {
             const gitignorePath = path.join(folder.uri.fsPath, '.gitignore');
@@ -265,7 +265,7 @@ export class IgnorePatternsWebviewProvider {
 
     private async addWorkspaceItem(itemPath: string) {
         const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) return;
+        if (!workspaceFolders) {return;}
 
         const workspaceFolder = workspaceFolders[0];
         const relativePath = path.relative(workspaceFolder.uri.fsPath, itemPath);
@@ -276,7 +276,7 @@ export class IgnorePatternsWebviewProvider {
 
     private async sendWorkspaceFiles() {
         const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders || !this.panel) return;
+        if (!workspaceFolders || !this.panel) {return;}
 
         // Get all files, excluding node_modules and .git
         const files = await vscode.workspace.findFiles(
@@ -323,7 +323,7 @@ export class IgnorePatternsWebviewProvider {
     }
 
     private async sendCurrentPatterns() {
-        if (!this.panel) return;
+        if (!this.panel) {return;}
 
         const config = vscode.workspace.getConfiguration('localSnapshots');
         const patterns = config.get<(string | { pattern: string, fromGitignore: boolean })[]>('customIgnorePatterns', []);
