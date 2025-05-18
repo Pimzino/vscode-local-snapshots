@@ -2,6 +2,16 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.21] - 2025-05-18
+
+### Improved
+- Significant performance and code quality improvements:
+  - Better memory usage for large workspaces
+  - Faster snapshot operations with optimized file handling
+  - Improved error handling with detailed diagnostics
+  - More responsive server operations
+  - Enhanced UI responsiveness
+
 ## [0.0.20] - 2025-05-18
 
 ### Improved

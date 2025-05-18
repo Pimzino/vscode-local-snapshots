@@ -130,6 +130,43 @@ export class Logger {
     }
 
     /**
+     * Log an error with its stack trace in a standardized format
+     * @param message The error message
+     * @param component The component where the error occurred
+     * @param error The error object
+     */
+    public logErrorWithStack(message: string, component: string, error: unknown): void {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+        
+        this.error(message, component, errorMessage);
+        this.error('Error stack', component, errorStack);
+    }
+
+    /**
+     * Log an operation with a try/catch block
+     * @param operationName The name of the operation
+     * @param component The component of the operation
+     * @param fn The function to run
+     * @returns The result of the function or undefined if it throws
+     */
+    public async logOperation<T>(
+        operationName: string, 
+        component: string, 
+        fn: () => Promise<T>
+    ): Promise<T | undefined> {
+        try {
+            this.info(`Starting ${operationName}`, component);
+            const result = await fn();
+            this.info(`Completed ${operationName}`, component);
+            return result;
+        } catch (error) {
+            this.logErrorWithStack(`Failed during ${operationName}`, component, error);
+            return undefined;
+        }
+    }
+
+    /**
      * Dispose the output channel
      */
     public dispose(): void {

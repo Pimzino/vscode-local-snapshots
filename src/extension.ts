@@ -9,6 +9,8 @@ import { MCPServer } from './mcp/server';
 import { registerMCPTools } from './mcp/mcpTools';
 import { NotificationManager } from './utils/NotificationManager';
 import { Logger } from './utils/Logger';
+import { ConfigurationManager } from './utils/ConfigurationManager';
+import { StatusBarManager } from './utils/StatusBarManager';
 import path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -28,65 +30,22 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Initialize the notification manager and ensure it's properly set up
 	const notificationManager = NotificationManager.getInstance();
-
-	// Test notification to verify the notification system is working
-	setTimeout(async () => {
-		try {
-			logger.info('Sending test notification to verify notification system', 'Extension');
-			await notificationManager.showInformationMessage('Local Snapshots extension is ready', undefined, false);
-		} catch (error) {
-			logger.error('Error sending test notification', 'Extension', error);
-		}
-	}, 3000);
 	const snapshotManager = new SnapshotManager(context);
 	let apiServer: ApiServer | undefined;
 	let mcpServer: MCPServer | undefined;
 
-	// Create status bar items for API and MCP servers
-	const apiStatusBarItem = vscode.window.createStatusBarItem(
-		vscode.StatusBarAlignment.Right,
-		100
-	);
-	apiStatusBarItem.command = 'local-snapshots.openSettings';
-	context.subscriptions.push(apiStatusBarItem);
-
-	const mcpStatusBarItem = vscode.window.createStatusBarItem(
-		vscode.StatusBarAlignment.Right,
-		99
-	);
-	mcpStatusBarItem.command = 'local-snapshots.openSettings';
-	context.subscriptions.push(mcpStatusBarItem);
-
-	function updateApiStatusBar(isEnabled: boolean, port?: number) {
-		if (isEnabled && port) {
-			apiStatusBarItem.text = `$(radio-tower) API: ${port}`;
-			apiStatusBarItem.tooltip = `Local Snapshots API running on port ${port}. Click to change settings.`;
-			apiStatusBarItem.show();
-		} else {
-			apiStatusBarItem.text = `$(radio-tower) API: Off`;
-			apiStatusBarItem.tooltip = 'Local Snapshots API is disabled. Click to change settings.';
-			apiStatusBarItem.show();
-		}
-	}
-
-	function updateMcpStatusBar(isEnabled: boolean, port?: number) {
-		if (isEnabled && port) {
-			mcpStatusBarItem.text = `$(plug) MCP: ${port}`;
-			mcpStatusBarItem.tooltip = `Local Snapshots MCP server running on port ${port}. Click to change settings.`;
-			mcpStatusBarItem.show();
-		} else {
-			mcpStatusBarItem.text = `$(plug) MCP: Off`;
-			mcpStatusBarItem.tooltip = 'Local Snapshots MCP server is disabled. Click to change settings.';
-			mcpStatusBarItem.show();
-		}
-	}
+	// Create the status bar manager
+	const statusBarManager = StatusBarManager.getInstance();
+	context.subscriptions.push({
+		dispose: () => statusBarManager.dispose()
+	});
 
 	// Register the settings provider
 	const settingsProvider = new SettingsWebviewProvider(
 		context.extensionUri,
 		snapshotManager,
-		updateApiStatusBar,
-		updateMcpStatusBar
+		(isEnabled, port) => statusBarManager.updateApiStatus(isEnabled, port),
+		(isEnabled, port) => statusBarManager.updateMcpStatus(isEnabled, port)
 	);
 
 	// Function to manage API server state
@@ -110,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		// Update status bar initially
-		updateApiStatusBar(isEnabled, undefined);
+		statusBarManager.updateApiStatus(isEnabled, undefined);
 
 		// Start new server if enabled
 		if (isEnabled) {
@@ -123,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const actualPort = await apiServer.start();
 
 				// Update status bar with actual port
-				updateApiStatusBar(true, actualPort);
+				statusBarManager.updateApiStatus(true, actualPort);
 
 				logger.info(`API server successfully started on port ${actualPort}`, 'Extension');
 				logger.info(`API server object: ${apiServer ? 'Created successfully' : 'Failed to create'}`, 'Extension');
@@ -164,7 +123,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		// Update status bar initially
-		updateMcpStatusBar(isEnabled, undefined);
+		statusBarManager.updateMcpStatus(isEnabled, undefined);
 
 		// Start new server if enabled
 		if (isEnabled) {
@@ -177,7 +136,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const actualPort = await mcpServer.start();
 
 				// Update status bar with actual port
-				updateMcpStatusBar(true, actualPort);
+				statusBarManager.updateMcpStatus(true, actualPort);
 
 				logger.info(`MCP server successfully started on port ${actualPort}`, 'Extension');
 				logger.info(`MCP server object: ${mcpServer ? 'Created successfully' : 'Failed to create'}`, 'Extension');
@@ -214,8 +173,7 @@ export function activate(context: vscode.ExtensionContext) {
 				mcpServer.stop();
 				mcpServer = undefined;
 			}
-			apiStatusBarItem.dispose();
-			mcpStatusBarItem.dispose();
+			// Status bar items are disposed through the statusBarManager's dispose method
 		}
 	});
 

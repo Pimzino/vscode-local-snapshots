@@ -967,6 +967,58 @@ export class SnapshotManager {
     return results;
   }
 
+  /**
+   * Creates a snapshot with the given parameters
+   * @param options Options for creating the snapshot
+   * @returns Promise that resolves when the snapshot is created
+   */
+  private async createSnapshot(options: {
+    name: string;
+    files: FileSnapshot[];
+    timestamp?: number;
+    scope?: {
+      type: 'file' | 'directory' | 'workspace';
+      uri?: string;
+    };
+  }): Promise<void> {
+    if (options.files.length === 0) {
+      throw new Error('No files found to snapshot');
+    }
+
+    // Create a properly typed snapshotScope if uri is provided
+    let snapshotScope = options.scope ? {
+      type: options.scope.type,
+      ...(options.scope.uri ? { uri: options.scope.uri } : {})
+    } : undefined;
+
+    const snapshot: Snapshot = {
+      name: options.name,
+      timestamp: options.timestamp || Date.now(),
+      files: options.files,
+      snapshotScope: snapshotScope as any // Use type assertion to satisfy TypeScript
+    };
+
+    await this.addSnapshot(snapshot);
+    this.webviewProvider?.refreshList();
+  }
+
+  /**
+   * Collects file URIs from a workspace folder or directory
+   * @param source The URI source (workspace folder or directory)
+   * @param pattern The file pattern to match
+   * @returns Promise that resolves to the collected URIs
+   */
+  private async collectFileUris(source: vscode.Uri | vscode.WorkspaceFolder, pattern: string = '**/*'): Promise<vscode.Uri[]> {
+    const relativePattern = new vscode.RelativePattern(
+      source instanceof vscode.Uri ? source.fsPath : source,
+      pattern
+    );
+    return await vscode.workspace.findFiles(
+      relativePattern,
+      '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
+    );
+  }
+  
   async takeSnapshot(name?: string): Promise<void> {
     return vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
@@ -1006,11 +1058,7 @@ export class SnapshotManager {
 
       // First collect all URIs
       for (const folder of workspaceFolders) {
-        const pattern = new vscode.RelativePattern(folder, '**/*');
-        const uris = await vscode.workspace.findFiles(
-          pattern,
-          '{**/node_modules/**,**/dist/**,**/.git/**,**/out/**}'
-        );
+        const uris = await this.collectFileUris(folder);
         allUris.push(...uris);
         totalFiles += uris.length;
       }
@@ -1030,19 +1078,17 @@ export class SnapshotManager {
 
       if (files.length > 0) {
         progress.report({ message: 'Saving snapshot...' });
-        const snapshot: Snapshot = {
+        await this.createSnapshot({
           name: snapshotName,
-          timestamp: Date.now(),
-          files
-        };
-
-        await this.addSnapshot(snapshot);
-        this.webviewProvider?.refreshList();
+          files,
+          scope: {
+            type: 'workspace'
+          }
+        });
       } else {
         throw new Error('No files found to snapshot');
       }
     });
-
   }
 
   async deleteSnapshot(snapshotName: string, timestamp: number): Promise<boolean> {
@@ -1735,24 +1781,19 @@ export class SnapshotManager {
 
             const timestamp = this.formatTimestamp();
 
-            const snapshot: Snapshot = {
+            progress.report({ message: 'Saving snapshot...' });
+            
+            await this.createSnapshot({
                 name: `${fileName} - ${timestamp}`,
-                timestamp: Date.now(),
                 files: [{
                     content,
                     relativePath
                 }],
-                snapshotScope: {
+                scope: {
                     type: 'file',
                     uri: uri.toString() // Store as string to preserve scheme
                 }
-            };
-
-
-
-            progress.report({ message: 'Saving snapshot...' });
-            await this.addSnapshot(snapshot);
-            this.webviewProvider?.refreshList();
+            });
 
         } catch (error) {
             console.error('Failed to take file snapshot:', error);
@@ -1814,9 +1855,8 @@ export class SnapshotManager {
             throw new Error('Directory is not in the current workspace');
         }
 
-        // Use the directory as the pattern root
-        const pattern = new vscode.RelativePattern(uri.fsPath, '**/*');
-        const uris = await vscode.workspace.findFiles(pattern);
+        // Collect URIs from the directory
+        const uris = await this.collectFileUris(uri);
         const totalFiles = uris.length;
 
         if (totalFiles === 0) {
@@ -1842,18 +1882,14 @@ export class SnapshotManager {
         const dirName = path.basename(uri.fsPath);
         const timestamp = this.formatTimestamp();
 
-        const snapshot: Snapshot = {
+        await this.createSnapshot({
             name: `${dirName} - ${timestamp}`,
-            timestamp: Date.now(),
             files,
-            snapshotScope: {
+            scope: {
                 type: 'directory',
                 uri: uri.fsPath
             }
-        };
-
-        await this.addSnapshot(snapshot);
-        this.webviewProvider?.refreshList();
+        });
     });
   }
 
@@ -1936,32 +1972,7 @@ export class SnapshotManager {
     this.webviewProvider?.refreshList();
   }
 
-  public async createSnapshot(name?: string): Promise<void> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
-      await this.notificationManager.showErrorMessage('No workspace folder is open');
-      return;
-    }
-
-    const workspaceFolder = workspaceFolders[0].uri.fsPath;
-    const files: FileSnapshot[] = [];
-    const timestamp = Date.now();
-
-    const snapshot: Snapshot = {
-      name: name || this.formatTimestamp(),
-      timestamp,
-      files,
-      workspaceFolder,
-      snapshotScope: {
-      type: 'workspace',
-      uri: workspaceFolder
-      }
-    };
-
-    const snapshots = this.getSnapshots();
-    snapshots.push(snapshot);
-    await this.saveSnapshots(snapshots);
-  }
+  // This method was replaced by the private createSnapshot method with options parameter
 
   private async loadGitignore(workspaceFolder: string): Promise<ReturnType<typeof ignore> | undefined> {
     // Check if we have a cached instance
