@@ -46,15 +46,13 @@ export class SettingsWebviewProvider {
         if (apiEnabled) {
             try {
                 console.log(`[SettingsProvider] Initializing API server`);
-                // Send initial status update - server is starting
-                await this.sendApiServerStatusUpdate(true);
 
                 this.apiServer = new ApiServer(this.snapshotManager);
                 const actualPort = await this.apiServer.start();
                 this.updateApiStatusBar(true, actualPort);
                 console.log(`[SettingsProvider] API server initialized successfully on port ${actualPort}`);
 
-                // Send status update with the actual port
+                // Send status update with the actual port (only after server is running)
                 await this.sendApiServerStatusUpdate(true, actualPort);
             } catch (error) {
                 console.error(`[SettingsProvider] Failed to initialize API server:`, error);
@@ -77,15 +75,13 @@ export class SettingsWebviewProvider {
         if (mcpEnabled) {
             try {
                 console.log(`[SettingsProvider] Initializing MCP server`);
-                // Send initial status update - server is starting
-                await this.sendMcpServerStatusUpdate(true);
 
                 this.mcpServer = new MCPServer(this.snapshotManager);
                 const actualPort = await this.mcpServer.start();
                 this.updateMcpStatusBar(true, actualPort);
                 console.log(`[SettingsProvider] MCP server initialized successfully on port ${actualPort}`);
 
-                // Send status update with the actual port
+                // Send status update with the actual port (only after server is running)
                 await this.sendMcpServerStatusUpdate(true, actualPort);
             } catch (error) {
                 console.error(`[SettingsProvider] Failed to initialize MCP server:`, error);
@@ -258,9 +254,6 @@ export class SettingsWebviewProvider {
                             this.apiServer = undefined;
                         }
 
-                        // Send initial status update - server is starting
-                        await this.sendApiServerStatusUpdate(true);
-
                         // Create and start the server
                         console.log(`[SettingsProvider] Creating new API server`);
                         this.apiServer = new ApiServer(this.snapshotManager);
@@ -275,7 +268,7 @@ export class SettingsWebviewProvider {
                         // Update status bar
                         this.updateApiStatusBar(true, actualPort);
 
-                        // Send status update with the actual port
+                        // Send status update with the actual port (only after server is running)
                         await this.sendApiServerStatusUpdate(true, actualPort);
 
                         if (this.panel) {
@@ -355,9 +348,6 @@ export class SettingsWebviewProvider {
                             this.mcpServer = undefined;
                         }
 
-                        // Send initial status update - server is starting
-                        await this.sendMcpServerStatusUpdate(true);
-
                         // Create and start the server
                         console.log(`[SettingsProvider] Creating new MCP server`);
                         this.mcpServer = new MCPServer(this.snapshotManager);
@@ -372,7 +362,7 @@ export class SettingsWebviewProvider {
                         // Update status bar
                         this.updateMcpStatusBar(true, actualPort);
 
-                        // Send status update with the actual port
+                        // Send status update with the actual port (only after server is running)
                         await this.sendMcpServerStatusUpdate(true, actualPort);
 
                         if (this.panel) {
