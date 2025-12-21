@@ -73,6 +73,11 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 				case 'deleteSnapshot':
 					try {
 						await this._onDeleteSnapshot(data.name, data.timestamp);
+					} catch (error) {
+						// Error is already handled by the deleteSnapshot method
+						// (shows confirmation dialog and notification)
+						// Just log for debugging purposes
+						console.error('Delete snapshot error:', error);
 					} finally {
 						// Always refresh the list after a delete attempt to ensure UI is in sync
 						await this.refreshList();
