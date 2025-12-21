@@ -98,16 +98,16 @@
                 // Update the session port
                 if (message.serverType === 'api') {
                     window.apiSessionPort = message.isRunning ? message.port : undefined;
-                    // Re-render the API server panel if it's currently visible
+                    // Re-render the API server panel if it's currently visible (using class-based visibility check)
                     const apiPanel = document.getElementById('API Server');
-                    if (apiPanel && apiPanel.style.display !== 'none') {
+                    if (apiPanel && apiPanel.classList.contains('active')) {
                         renderServerInfoBox(apiPanel, 'api');
                     }
                 } else if (message.serverType === 'mcp') {
                     window.mcpSessionPort = message.isRunning ? message.port : undefined;
-                    // Re-render the MCP server panel if it's currently visible
+                    // Re-render the MCP server panel if it's currently visible (using class-based visibility check)
                     const mcpPanel = document.getElementById('MCP Server');
-                    if (mcpPanel && mcpPanel.style.display !== 'none') {
+                    if (mcpPanel && mcpPanel.classList.contains('active')) {
                         renderServerInfoBox(mcpPanel, 'mcp');
                     }
                 }
@@ -271,6 +271,19 @@
                 panel.classList.remove('active');
             }
         });
+
+        // Re-render server info box when switching to server tabs (in case status changed while tab was hidden)
+        if (category === 'MCP Server' && settings.enableMcpServer) {
+            const mcpPanel = document.getElementById('MCP Server');
+            if (mcpPanel) {
+                renderServerInfoBox(mcpPanel, 'mcp');
+            }
+        } else if (category === 'API Server' && settings.enableApiServer) {
+            const apiPanel = document.getElementById('API Server');
+            if (apiPanel) {
+                renderServerInfoBox(apiPanel, 'api');
+            }
+        }
     }
 
     /**
