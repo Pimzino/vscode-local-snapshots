@@ -273,12 +273,12 @@
         });
 
         // Re-render server info box when switching to server tabs (in case status changed while tab was hidden)
-        if (category === 'MCP Server' && settings.enableMcpServer === true) {
+        if (category === 'MCP Server' && settings.enableMcpServer) {
             const mcpPanel = document.getElementById('MCP Server');
             if (mcpPanel) {
                 renderServerInfoBox(mcpPanel, 'mcp');
             }
-        } else if (category === 'API Server' && settings.enableApiServer === true) {
+        } else if (category === 'API Server' && settings.enableApiServer) {
             const apiPanel = document.getElementById('API Server');
             if (apiPanel) {
                 renderServerInfoBox(apiPanel, 'api');
