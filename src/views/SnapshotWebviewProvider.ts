@@ -71,8 +71,10 @@ export class SnapshotWebviewProvider implements vscode.WebviewViewProvider {
 					await this._showTree(data.name, data.timestamp);
 					break;
 				case 'deleteSnapshot':
-					const wasDeleted = await this._onDeleteSnapshot(data.name, data.timestamp);
-					if (wasDeleted) {
+					try {
+						await this._onDeleteSnapshot(data.name, data.timestamp);
+					} finally {
+						// Always refresh the list after a delete attempt to ensure UI is in sync
 						await this.refreshList();
 					}
 					break;
