@@ -2,6 +2,12 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.22] - 2025-12-21
+
+### Fixed
+- Fixed delete button not refreshing UI after snapshot deletion
+- Fixed MCP server status display showing "not running" when server is active
+
 ## [0.0.21] - 2025-05-18
 
 ### Improved
