@@ -1,0 +1,44 @@
+name: Publish Extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Publish target'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - vscode
+          - openvsx
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Package extension
+        run: npx vsce package
+
+      - name: Publish to VS Code Marketplace
+        if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == 'vscode' }}
+        run: npx vsce publish -p ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to OpenVSX
+        if: ${{ github.event.inputs.target == 'both' || github.event.inputs.target == 'openvsx' }}
+        run: npx ovsx publish -p ${{ secrets.OVSX_PAT }}
