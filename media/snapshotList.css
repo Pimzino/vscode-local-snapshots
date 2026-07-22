@@ -109,6 +109,13 @@ body {
   box-shadow: 0 0 0 1px var(--vscode-focusBorder);
 }
 
+.filter-input-container .codicon {
+  margin-right: var(--spacing-sm);
+  font-size: 14px;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
 .filter-input {
   background: none;
   border: none;

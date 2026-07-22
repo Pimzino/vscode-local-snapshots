@@ -14,6 +14,95 @@
      */
 
 
+    const highlightUtils = window.DiffViewHighlightUtils || {
+        getDiffLineClass(lineType, lineLevelDiffEnabled) {
+            if (lineType === 'unchanged' || !lineLevelDiffEnabled) {
+                return '';
+            }
+
+            return lineType;
+        },
+        shouldApplyCharacterLevelDiff(options) {
+            const { characterLevelDiffEnabled, lineLevelDiffEnabled, lineType } = options;
+
+            return (
+                characterLevelDiffEnabled &&
+                !lineLevelDiffEnabled &&
+                lineType !== 'unchanged'
+            );
+        },
+        getOverviewMarkerColor(options) {
+            const { lineLevelDiffEnabled, isAdded, characterHighlightColor } = options;
+
+            if (lineLevelDiffEnabled) {
+                return isAdded ? '#73c991' : '#f14c4c';
+            }
+
+            return characterHighlightColor;
+        },
+    };
+
+    const overviewRulerUtils = window.DiffViewOverviewRulerUtils || {
+        getLineOffsetWithinContainer(line, container) {
+            const lineRect = line.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            return lineRect.top - containerRect.top + container.scrollTop;
+        },
+        calculateOverviewMarkerPercent(lineOffset, totalHeight) {
+            if (totalHeight === 0) {
+                return 0;
+            }
+
+            return (lineOffset / totalHeight) * 100;
+        },
+        lineHasDiffChanges(line) {
+            return (
+                line.classList.contains('added') ||
+                line.classList.contains('removed') ||
+                Boolean(line.querySelector('.char-added')) ||
+                Boolean(line.querySelector('.char-removed'))
+            );
+        },
+        isLineInExpandedFile(line) {
+            const fileGroup = line.closest('.file-group');
+            if (!fileGroup) {
+                return false;
+            }
+
+            const diffContent = fileGroup.querySelector('.diff-content');
+            return Boolean(diffContent?.classList.contains('expanded'));
+        },
+        isLineMeasurable(line) {
+            const rect = line.getBoundingClientRect();
+            return rect.height > 0 && rect.width > 0;
+        },
+        shouldIncludeLineInOverviewRuler(line) {
+            return (
+                overviewRulerUtils.lineHasDiffChanges(line) &&
+                overviewRulerUtils.isLineInExpandedFile(line) &&
+                overviewRulerUtils.isLineMeasurable(line)
+            );
+        },
+    };
+
+    const toggleUtils = window.DiffViewToggleUtils || {
+        syncToggleButtonState(button, enabled) {
+            if (!button) {
+                return;
+            }
+
+            button.classList.toggle('active', enabled);
+        },
+        syncToggleBySelector(container, selector, enabled) {
+            if (!container) {
+                return;
+            }
+
+            const button = container.querySelector(selector);
+            toggleUtils.syncToggleButtonState(button, enabled);
+        },
+    };
+
     class DiffView {
         constructor() {
             /** @type {HTMLElement | null} */
@@ -27,15 +116,21 @@
             /** @type {boolean} */
             this.characterLevelDiffEnabled = true; // Default to enabled
             /** @type {string} */
-            this.characterDiffHighlightColor = ''; // Will be set from settings when showDiff is called
+            this.characterDiffHighlightColor = window.__INITIAL_CHARACTER_DIFF_HIGHLIGHT_COLOR__ || '';
             /** @type {number | null} */
             this.colorUpdateTimeout = null;
             /** @type {any[] | null} */
             this.currentFiles = null;
+            /** @type {string | null} */
+            this.snapshotName = null;
+            /** @type {number | null} */
+            this.timestamp = null;
             /** @type {HTMLElement | null} */
             this.filesContainer = document.getElementById('files-list');
             /** @type {HTMLTemplateElement | null} */
             this.fileTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById('file-template'));
+            /** @type {HTMLElement | null} */
+            this.overviewRuler = document.getElementById('diff-overview-ruler');
 
             // Search elements
             /** @type {HTMLInputElement | null} */
@@ -64,6 +159,10 @@
             this.restoreAllBtn = document.querySelector('.restore-all');
             /** @type {import('./colorPicker').ColorPicker | null} */
             this.colorPicker = null;
+            /** @type {HTMLButtonElement | null} */
+            this.textWrapToggle = null;
+            /** @type {HTMLButtonElement | null} */
+            this.lineLevelDiffToggle = null;
 
             if (!this.container || !this.filesContainer || !this.fileTemplate) {
                 console.error('Required DOM elements not found');
@@ -73,7 +172,29 @@
             this.initialize();
         }
 
+        /**
+         * @returns {string}
+         */
+        getHighlightColor() {
+            return this.characterDiffHighlightColor || '#FFD700';
+        }
+
+        /**
+         * @param {string} color
+         */
+        setHighlightColor(color) {
+            this.characterDiffHighlightColor = color || '#FFD700';
+            document.documentElement.style.setProperty(
+                '--character-diff-highlight-color',
+                this.getHighlightColor()
+            );
+        }
+
         initialize() {
+            if (this.characterDiffHighlightColor) {
+                this.setHighlightColor(this.characterDiffHighlightColor);
+            }
+
             // Handle global controls
             this.expandAllBtn?.addEventListener('click', () => this.expandAllFiles());
             this.collapseAllBtn?.addEventListener('click', () => this.collapseAllFiles());
@@ -89,20 +210,20 @@
                 const message = event.data;
                 switch (message.type) {
                     case 'showDiff': {
+                        this.snapshotName = message.snapshotName;
+                        this.timestamp = message.timestamp;
                         this.diffViewStyle = message.diffViewStyle || 'side-by-side';
                         this.textWrappingEnabled = message.enableTextWrapping || false;
                         this.lineLevelDiffEnabled = message.enableLineLevelDiff !== false; // Default to true if not specified
                         this.characterLevelDiffEnabled = message.enableCharacterLevelDiff !== false; // Default to true if not specified
+                        this.syncToggleButtonStates();
 
-                        // Make sure we have a valid color from settings
-                        if (message.characterDiffHighlightColor) {
-                            this.characterDiffHighlightColor = message.characterDiffHighlightColor;
+                        // Always apply the saved highlight color before rendering
+                        this.setHighlightColor(message.characterDiffHighlightColor || this.getHighlightColor());
 
-                            // Update the color picker if it exists
-                            if (this.colorPicker) {
-                                this.colorPicker.setColorFromHex(message.characterDiffHighlightColor);
-                                this.colorPicker.updateUI();
-                            }
+                        if (this.colorPicker) {
+                            this.colorPicker.setColorFromHex(this.getHighlightColor());
+                            this.colorPicker.updateUI();
                         }
 
                         this.applyTextWrapping();
@@ -123,11 +244,11 @@
                     }
                     case 'updateHighlightColor': {
                         // Update the color
-                        this.characterDiffHighlightColor = message.color;
+                        this.setHighlightColor(message.color || '#FFD700');
 
                         // Update the color picker if it exists
                         if (this.colorPicker) {
-                            this.colorPicker.setColorFromHex(message.color);
+                            this.colorPicker.setColorFromHex(this.getHighlightColor());
                             this.colorPicker.updateUI();
                         }
 
@@ -140,6 +261,13 @@
 
             // Initialize search functionality
             this.initializeSearch();
+            
+            // Handle window resize for overview ruler
+            window.addEventListener('resize', () => {
+                this.updateOverviewRuler();
+            });
+
+            vscode.postMessage({ command: 'ready' });
         }
 
         /**
@@ -158,18 +286,17 @@
             // Create the text wrap toggle button
             const textWrapToggle = document.createElement('button');
             textWrapToggle.className = 'global-control text-wrap-toggle';
-            textWrapToggle.innerHTML = '<span class="codicon codicon-word-wrap"></span> Wrap Text';
+            textWrapToggle.innerHTML = '<span class="codicon codicon-word-wrap"></span> <span>Wrap<br>Text</span>';
             textWrapToggle.title = 'Toggle text wrapping';
 
-            // Set initial state based on the setting
-            if (this.textWrappingEnabled) {
-                textWrapToggle.classList.add('active');
-            }
+            this.textWrapToggle = textWrapToggle;
+            toggleUtils.syncToggleButtonState(textWrapToggle, this.textWrappingEnabled);
 
             // Add click handler
             textWrapToggle.addEventListener('click', () => {
+                console.log('Text Wrapping toggled. Now:', !this.textWrappingEnabled);
                 this.textWrappingEnabled = !this.textWrappingEnabled;
-                textWrapToggle.classList.toggle('active', this.textWrappingEnabled);
+                toggleUtils.syncToggleButtonState(textWrapToggle, this.textWrappingEnabled);
                 this.applyTextWrapping();
 
                 // Send message to extension to update the setting
@@ -199,21 +326,21 @@
             // Create the line-level diff toggle button
             const lineLevelDiffToggle = document.createElement('button');
             lineLevelDiffToggle.className = 'global-control line-level-diff-toggle';
-            lineLevelDiffToggle.innerHTML = '<span class="codicon codicon-list-selection"></span> Line Diff';
+            lineLevelDiffToggle.innerHTML = '<span class="codicon codicon-list-selection"></span> <span>Line<br>Diff</span>';
             lineLevelDiffToggle.title = 'Toggle line-level diff highlighting';
 
-            // Set initial state based on the setting
-            if (this.lineLevelDiffEnabled) {
-                lineLevelDiffToggle.classList.add('active');
-            }
+            this.lineLevelDiffToggle = lineLevelDiffToggle;
+            toggleUtils.syncToggleButtonState(lineLevelDiffToggle, this.lineLevelDiffEnabled);
 
             // Add click handler
             lineLevelDiffToggle.addEventListener('click', () => {
+                console.log('Line Diff toggled. Now:', !this.lineLevelDiffEnabled);
                 this.lineLevelDiffEnabled = !this.lineLevelDiffEnabled;
-                lineLevelDiffToggle.classList.toggle('active', this.lineLevelDiffEnabled);
+                toggleUtils.syncToggleButtonState(lineLevelDiffToggle, this.lineLevelDiffEnabled);
 
                 // Re-render the diff with the new setting
-                this.renderDiff(this.currentFiles);
+                this.renderDiff(this.currentFiles || []);
+                this.applyCustomHighlightColor();
 
                 // Send message to extension to update the setting
                 vscode.postMessage({
@@ -239,17 +366,20 @@
                 return;
             }
 
-            // Only create the color picker if we have a valid color
-            if (!this.characterDiffHighlightColor) {
+            const highlightColor = this.getHighlightColor();
+
+            if (this.colorPicker) {
+                this.colorPicker.setColorFromHex(highlightColor);
+                this.colorPicker.updateUI();
                 return;
             }
 
             // Create the color picker
             /** @type {any} */
             const ColorPickerConstructor = window.ColorPicker;
-            this.colorPicker = new ColorPickerConstructor(this.characterDiffHighlightColor, (color) => {
+            this.colorPicker = new ColorPickerConstructor(highlightColor, (color) => {
                 // Update the color
-                this.characterDiffHighlightColor = color;
+                this.setHighlightColor(color);
 
                 // Apply the new color
                 this.applyCustomHighlightColor();
@@ -267,6 +397,14 @@
         }
 
         /**
+         * Syncs toggle button active classes with current settings.
+         */
+        syncToggleButtonStates() {
+            toggleUtils.syncToggleButtonState(this.textWrapToggle, this.textWrappingEnabled);
+            toggleUtils.syncToggleButtonState(this.lineLevelDiffToggle, this.lineLevelDiffEnabled);
+        }
+
+        /**
          * Applies text wrapping based on the current setting
          */
         applyTextWrapping() {
@@ -279,6 +417,9 @@
             } else {
                 this.container.classList.remove('text-wrap-enabled');
             }
+
+            // Update ruler as line heights changed
+            this.updateOverviewRuler();
         }
 
         /**
@@ -328,9 +469,20 @@
                 return;
             }
 
+            if (this.lineLevelDiffEnabled) {
+                const styleEl = document.getElementById('custom-highlight-styles');
+                if (styleEl) {
+                    styleEl.textContent = '';
+                }
+
+                this.updateOverviewRuler();
+                return;
+            }
+
             // If no color is set yet, use a default color
             // This ensures character-level highlighting is always visible
-            const highlightColor = this.characterDiffHighlightColor || '#FFD700';
+            const highlightColor = this.getHighlightColor();
+            this.setHighlightColor(highlightColor);
 
             // Enhance the color for better contrast
             const enhancedColor = this.enhanceColorContrast(highlightColor);
@@ -368,6 +520,9 @@
                 span.style.fontWeight = 'bold';
                 span.style.color = style.getPropertyValue('--char-diff-text-color');
             });
+
+            // Also update the overview ruler colors
+            this.updateOverviewRuler();
         }
 
         /**
@@ -685,6 +840,7 @@
                     header.classList.remove('collapsed');
                 }
             });
+            this.updateOverviewRuler();
         }
 
         collapseAllFiles() {
@@ -697,6 +853,7 @@
                     header.classList.add('collapsed');
                 }
             });
+            this.updateOverviewRuler();
         }
 
         restoreAllFiles() {
@@ -735,6 +892,11 @@
             this.currentFiles = files;
 
             this.filesContainer.innerHTML = '';
+            
+            // Clear overview ruler
+            if (this.overviewRuler) {
+                this.overviewRuler.innerHTML = '';
+            }
 
             files.forEach(file => {
                 if (!this.fileTemplate || !this.filesContainer) {
@@ -786,6 +948,7 @@
                         collapseIndicator.setAttribute('data-tooltip',
                             isCollapsed ? 'Click to expand' : 'Click to collapse'
                         );
+                        this.updateOverviewRuler();
                     }
                 });
 
@@ -822,8 +985,82 @@
                     });
                 });
 
+                // Add click handler for git diff button
+                const gitDiffButton = /** @type {HTMLElement | null} */ (header.querySelector('.git-diff-button'));
+                if (gitDiffButton) {
+                    if (file.status === 'created') {
+                        gitDiffButton.style.display = 'none';
+                    } else {
+                        gitDiffButton.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            vscode.postMessage({
+                                command: 'diffWithGit',
+                                snapshotName: this.snapshotName,
+                                timestamp: this.timestamp,
+                                filePath: file.path
+                            });
+                        });
+                    }
+                }
+
                 this.filesContainer.appendChild(fileGroup);
             });
+
+            // Update overview ruler after all files are rendered
+            this.updateOverviewRuler();
+        }
+
+        /**
+         * Updates the overview ruler with markers for all changes
+         */
+        updateOverviewRuler() {
+            if (!this.overviewRuler || !this.filesContainer) {
+                return;
+            }
+
+            this.overviewRuler.innerHTML = '';
+            
+            // Get all diff lines that have changes - check both for line-level classes and char-diff spans
+            const allLines = this.filesContainer.querySelectorAll('.diff-line, .diff-line-horizontal');
+            const totalHeight = this.filesContainer.scrollHeight;
+            if (totalHeight === 0) return;
+
+            const highlightColor = this.getHighlightColor();
+            const fragment = document.createDocumentFragment();
+            
+            allLines.forEach(line => {
+                if (!overviewRulerUtils.shouldIncludeLineInOverviewRuler(line)) {
+                    return;
+                }
+
+                const isAdded = line.classList.contains('added') || line.querySelector('.char-added');
+                const isRemoved = line.classList.contains('removed') || line.querySelector('.char-removed');
+                
+                if (isAdded || isRemoved) {
+                    const marker = document.createElement('div');
+                    marker.className = 'diff-overview-marker';
+                    
+                    const lineOffset = overviewRulerUtils.getLineOffsetWithinContainer(
+                        /** @type {Element} */ (line),
+                        this.filesContainer
+                    );
+                    const percent = overviewRulerUtils.calculateOverviewMarkerPercent(
+                        lineOffset,
+                        totalHeight
+                    );
+                    
+                    marker.style.top = `${percent}%`;
+                    marker.style.backgroundColor = highlightUtils.getOverviewMarkerColor({
+                        lineLevelDiffEnabled: this.lineLevelDiffEnabled,
+                        isAdded: Boolean(isAdded),
+                        characterHighlightColor: highlightColor,
+                    });
+                    
+                    fragment.appendChild(marker);
+                }
+            });
+            
+            this.overviewRuler.appendChild(fragment);
         }
 
 
@@ -948,19 +1185,27 @@
          * @returns {string} - HTML string with character-level highlighting
          */
         renderLineWithCharDiff(content, originalContent, type) {
-            // If character-level diff is disabled or the line is unchanged, just return the content
-            if (!this.characterLevelDiffEnabled || type === 'unchanged' || !originalContent || !content) {
+            if (!highlightUtils.shouldApplyCharacterLevelDiff({
+                characterLevelDiffEnabled: this.characterLevelDiffEnabled,
+                lineLevelDiffEnabled: this.lineLevelDiffEnabled,
+                lineType: type,
+            })) {
                 return this.escapeHtml(content || '');
+            }
+
+            // Ensure we have some content to diff
+            if (!content && !originalContent) {
+                return '';
             }
 
             // If no color is set yet, use a default color for highlighting
             // This ensures character-level highlighting is always visible
-            const highlightColor = this.characterDiffHighlightColor || '#FFD700';
+            const highlightColor = this.getHighlightColor();
 
             // For added/removed lines, compute character diff
             const charDiff = this.computeCharacterDiff(
-                type === 'removed' ? content : originalContent,
-                type === 'added' ? content : originalContent
+                type === 'removed' ? content : (originalContent || ''),
+                type === 'added' ? content : (originalContent || '')
             );
 
             // Enhance the color for better contrast
@@ -1040,9 +1285,10 @@
             return diff.map(line => {
                 const lineNumberLeft = line.originalLine || '•';
                 const lineNumberRight = line.modifiedLine || '•';
-                // Only apply line class if line-level diff is enabled
-                const lineClass = line.type === 'unchanged' ? '' :
-                                 (this.lineLevelDiffEnabled ? line.type : '');
+                const lineClass = highlightUtils.getDiffLineClass(
+                    line.type,
+                    this.lineLevelDiffEnabled
+                );
 
                 // Get corresponding line for character-level diff if available
                 const correspondingLine = lineMap.get(line);
@@ -1115,9 +1361,10 @@
                 <div class="diff-content">
                     ${diff.map(line => {
                         const lineNumber = line.originalLine || line.modifiedLine || '•';
-                        // Only apply line class if line-level diff is enabled
-                        const lineClass = line.type === 'unchanged' ? '' :
-                                         (this.lineLevelDiffEnabled ? line.type : '');
+                        const lineClass = highlightUtils.getDiffLineClass(
+                            line.type,
+                            this.lineLevelDiffEnabled
+                        );
                         const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
 
                         // Get corresponding line for character-level diff if available

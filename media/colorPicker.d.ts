@@ -97,4 +97,5 @@ declare class ColorPickerComponent {
 interface Window {
     ColorPicker: typeof ColorPicker;
     ColorPickerComponent: typeof ColorPickerComponent;
+    __INITIAL_CHARACTER_DIFF_HIGHLIGHT_COLOR__?: string;
 }

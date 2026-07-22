@@ -64,8 +64,23 @@
 				});
 			};
 			
+			const gitDiffBtn = document.createElement('button');
+			gitDiffBtn.className = 'git-diff-button';
+			gitDiffBtn.innerHTML = '<i class="codicon codicon-git-compare"></i> Git Diff';
+			gitDiffBtn.title = 'Open in external Git Diff tool';
+			gitDiffBtn.setAttribute('data-path', node.path);
+
+			gitDiffBtn.onclick = (e) => {
+				e.stopPropagation();
+				vscode.postMessage({
+					command: 'diffWithGit',
+					filePath: node.path
+				});
+			};
+
 			actions.appendChild(restoredIndicator);
 			actions.appendChild(restoreBtn);
+			actions.appendChild(gitDiffBtn);
 			item.appendChild(actions);
 		}
 		

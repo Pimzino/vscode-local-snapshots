@@ -13,12 +13,23 @@
     --char-diff-border-color: rgba(0, 0, 0, 0.3);
     --char-diff-text-color: var(--vscode-editor-foreground);
     --char-diff-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
+
+    /* Line diff backgrounds with webview-safe fallbacks */
+    --diff-inserted-line-background: var(--vscode-diffEditor-insertedLineBackground, rgba(115, 201, 145, 0.2));
+    --diff-removed-line-background: var(--vscode-diffEditor-removedLineBackground, rgba(241, 76, 76, 0.2));
 }
 
 /* Adjust border color for dark themes */
 .vscode-dark {
     --char-diff-border-color: rgba(255, 255, 255, 0.3);
     --char-diff-shadow: 0 0 3px rgba(255, 255, 255, 0.2);
+    --diff-inserted-line-background: var(--vscode-diffEditor-insertedLineBackground, rgba(115, 201, 145, 0.2));
+    --diff-removed-line-background: var(--vscode-diffEditor-removedLineBackground, rgba(241, 76, 76, 0.2));
+}
+
+.vscode-light {
+    --diff-inserted-line-background: var(--vscode-diffEditor-insertedLineBackground, rgba(0, 128, 0, 0.15));
+    --diff-removed-line-background: var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.15));
 }
 
 body {
@@ -43,21 +54,112 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
     padding: var(--spacing-sm) var(--spacing-md);
     background-color: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-widget-border);
-    border-radius: var(--card-radius);
-    box-shadow: var(--card-shadow);
+    border-bottom: 1px solid var(--vscode-widget-border);
     position: sticky;
-    top: var(--spacing-md);
+    top: 0;
     z-index: 100;
     margin-bottom: var(--spacing-md);
+}
+
+.action-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all var(--transition-duration) ease;
+}
+
+.action-group .global-control {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    flex-direction: column;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    gap: 2px;
+    height: auto;
+    min-width: 60px;
+}
+
+.action-group .global-control:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+    transform: none;
+}
+
+.action-group .global-control.active {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    box-shadow: none;
+}
+
+.action-group .global-control.active .codicon {
+    color: var(--vscode-button-foreground);
+}
+
+.action-group .global-control.text-wrap-toggle,
+.action-group .global-control.line-level-diff-toggle {
+    background: transparent;
+    border: none;
+}
+
+.action-group .global-control.text-wrap-toggle.active,
+.action-group .global-control.line-level-diff-toggle.active {
+    background: transparent;
+    color: inherit;
+    border: 1px solid var(--vscode-widget-border);
+    box-shadow: none;
+}
+
+.action-group .global-control.text-wrap-toggle.active .codicon,
+.action-group .global-control.line-level-diff-toggle.active .codicon {
+    color: inherit;
+}
+
+.action-group .global-control span:not(.codicon) {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-align: center;
+    line-height: 1.1;
+}
+
+.action-group .global-control .codicon {
+    font-size: 16px;
+}
+
+.action-group .color-picker-container {
+    margin-left: var(--spacing-sm);
+}
+
+.action-group .color-preview-button {
+    background-color: var(--character-diff-highlight-color, #FFD700);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    width: 32px;
+    height: 32px;
+    color: #000;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin: 0;
+}
+
+.action-group .color-preview-button:hover {
+    transform: translateY(-1px);
+    background-color: var(--character-diff-highlight-color, #FFD700);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.action-group .color-preview-button .codicon {
+    font-size: 16px;
 }
 
 .controls-left,
 .controls-right {
     display: flex;
     gap: var(--spacing-sm);
+    align-items: center;
 }
 
 .global-control {
@@ -153,7 +255,8 @@ body {
     gap: var(--spacing-md);
 }
 
-.restore-button {
+.restore-button,
+.git-diff-button {
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
@@ -168,9 +271,19 @@ body {
     transition: all var(--transition-duration) ease;
 }
 
-.restore-button:hover:not(:disabled) {
+.restore-button:hover:not(:disabled),
+.git-diff-button:hover {
     background: var(--vscode-button-hoverBackground);
     transform: translateY(-1px);
+}
+
+.git-diff-button {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+}
+
+.git-diff-button:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .restore-button:disabled {
@@ -311,11 +424,11 @@ body {
 }
 
 .diff-line.added .diff-line-right {
-    background-color: var(--vscode-diffEditor-insertedLineBackground);
+    background-color: var(--diff-inserted-line-background);
 }
 
 .diff-line.removed .diff-line-left {
-    background-color: var(--vscode-diffEditor-removedLineBackground);
+    background-color: var(--diff-removed-line-background);
 }
 
 /* Horizontal diff view */
@@ -359,11 +472,11 @@ body {
 }
 
 .diff-line-horizontal.added {
-    background-color: var(--vscode-diffEditor-insertedLineBackground);
+    background-color: var(--diff-inserted-line-background);
 }
 
 .diff-line-horizontal.removed {
-    background-color: var(--vscode-diffEditor-removedLineBackground);
+    background-color: var(--diff-removed-line-background);
 }
 
 .diff-line-horizontal.added .diff-line-prefix {
@@ -487,11 +600,11 @@ body {
 }
 
 .diff-line.added {
-    background-color: var(--vscode-diffEditor-insertedLineBackground);
+    background-color: var(--diff-inserted-line-background);
 }
 
 .diff-line.removed {
-    background-color: var(--vscode-diffEditor-removedLineBackground);
+    background-color: var(--diff-removed-line-background);
 }
 
 .diff-line-left, .diff-line-right {
@@ -508,6 +621,7 @@ body {
 /* Character-level diff highlighting */
 .char-added {
     /* Base styling - color will be set dynamically by JavaScript */
+    background-color: var(--character-diff-highlight-color, #FFD700);
     border-radius: 2px;
     padding: 0 1px;
     margin: 0 -1px;
@@ -524,6 +638,7 @@ body {
 
 .char-removed {
     /* Base styling - color will be set dynamically by JavaScript */
+    background-color: var(--character-diff-highlight-color, #FFD700);
     border-radius: 2px;
     padding: 0 1px;
     margin: 0 -1px;
@@ -694,11 +809,11 @@ body {
 }
 
 .diff-line-horizontal.added {
-    background-color: var(--vscode-diffEditor-insertedLineBackground);
+    background-color: var(--diff-inserted-line-background);
 }
 
 .diff-line-horizontal.removed {
-    background-color: var(--vscode-diffEditor-removedLineBackground);
+    background-color: var(--diff-removed-line-background);
 }
 
 .diff-line-horizontal .diff-line-number {
@@ -747,8 +862,8 @@ body {
     align-items: center;
     background: var(--vscode-input-background);
     border: 1px solid var(--vscode-input-border, transparent);
-    border-radius: 4px;
-    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: 20px;
+    padding: var(--spacing-xs) var(--spacing-md);
     flex: 1;
     gap: var(--spacing-sm);
     transition: border-color var(--transition-duration) ease;
@@ -844,7 +959,7 @@ body {
 
 .search-wrapper {
     display: inline;
-    white-space: pre;
+    white-space: inherit;
 }
 
 .search-highlight {
@@ -852,7 +967,7 @@ body {
     background: var(--vscode-editor-findMatchHighlightBackground);
     outline: 1px solid var(--vscode-editor-findMatchHighlightBorder);
     border-radius: 2px;
-    white-space: pre;
+    white-space: inherit;
 }
 
 .search-highlight.active {
@@ -860,26 +975,54 @@ body {
     outline: 1px solid var(--vscode-editor-findMatchBorder);
 }
 
-/* Ensure search highlights don't break the diff view layout */
+/* Inherit line white-space so wrap text applies to search matches too */
 .diff-line-left .search-wrapper,
 .diff-line-right .search-wrapper,
 .diff-line-horizontal .diff-line-content .search-wrapper {
     display: inline;
-    white-space: pre;
+    white-space: inherit;
 }
 
 .diff-line-left .search-highlight,
 .diff-line-right .search-highlight,
 .diff-line-horizontal .diff-line-content .search-highlight {
     display: inline;
-    white-space: pre;
+    white-space: inherit;
     padding: 1px 0;
+}
+
+.diff-view-content {
+    position: relative;
+    flex: 1;
+    display: flex;
+    overflow: hidden;
 }
 
 .files-list {
     flex: 1;
     overflow-y: auto;
     padding-bottom: var(--spacing-md);
+}
+
+.diff-overview-ruler {
+    flex-shrink: 0;
+    width: 14px;
+    height: 100%;
+    background-color: transparent;
+    z-index: 90;
+    pointer-events: none;
+    border-left: 1px solid var(--vscode-widget-border);
+    position: relative; /* Changed from absolute to relative to sit beside the scrollbar container */
+}
+
+.diff-overview-marker {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    min-height: 2px;
+    z-index: 91;
+    opacity: 0.8;
 }
 
 .file-status {

@@ -239,9 +239,19 @@ export class IgnorePatternsWebviewProvider {
 
     private async addPattern(pattern: string) {
         const config = vscode.workspace.getConfiguration('localSnapshots');
-        const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
+        const currentPatterns = config.get<(string | { pattern: string, fromGitignore: boolean })[]>('customIgnorePatterns', []);
 
-        if (!currentPatterns.includes(pattern)) {
+        // Check if pattern already exists
+        const patternExists = currentPatterns.some(p => {
+            if (typeof p === 'string') {
+                return p === pattern;
+            } else if (typeof p === 'object' && p !== null) {
+                return p.pattern === pattern;
+            }
+            return false;
+        });
+
+        if (!patternExists) {
             await config.update(
                 'customIgnorePatterns',
                 [...currentPatterns, pattern],
@@ -253,11 +263,20 @@ export class IgnorePatternsWebviewProvider {
 
     private async removePattern(pattern: string) {
         const config = vscode.workspace.getConfiguration('localSnapshots');
-        const currentPatterns = config.get<string[]>('customIgnorePatterns', []);
+        const currentPatterns = config.get<(string | { pattern: string, fromGitignore: boolean })[]>('customIgnorePatterns', []);
+
+        const updatedPatterns = currentPatterns.filter(p => {
+            if (typeof p === 'string') {
+                return p !== pattern;
+            } else if (typeof p === 'object' && p !== null) {
+                return p.pattern !== pattern;
+            }
+            return true;
+        });
 
         await config.update(
             'customIgnorePatterns',
-            currentPatterns.filter(p => p !== pattern),
+            updatedPatterns,
             vscode.ConfigurationTarget.Global
         );
         await this.sendCurrentPatterns();

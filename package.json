@@ -2,17 +2,17 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Create and manage local snapshots of your workspace files",
-  "version": "0.0.22",
-  "publisher": "Pimzino",
+  "version": "0.0.23",
+  "publisher": "CalculatedRisk",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Pimzino/vscode-local-snapshots"
+    "url": "https://github.com/mlsimons/vscode-local-snapshots"
   },
   "bugs": {
-    "url": "https://github.com/Pimzino/vscode-local-snapshots/issues"
+    "url": "https://github.com/mlsimons/vscode-local-snapshots/issues"
   },
-  "homepage": "https://github.com/Pimzino/vscode-local-snapshots#readme",
+  "homepage": "https://github.com/mlsimons/vscode-local-snapshots#readme",
   "keywords": [
     "snapshot",
     "backup",
@@ -137,7 +137,23 @@
           "default": [],
           "description": "Custom glob patterns to exclude files from snapshots (e.g. ['*.log', 'temp/**'])",
           "items": {
-            "type": "string"
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string"
+                  },
+                  "fromGitignore": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["pattern"]
+              }
+            ]
           }
         },
         "localSnapshots.batchSize": {
@@ -191,6 +207,7 @@
           "id": "local-snapshots-list",
           "name": "Local Snapshots",
           "type": "webview",
+          "icon": "resources/snapshot.svg",
           "visibility": "visible"
         }
       ]
@@ -235,6 +252,12 @@
         "command": "local-snapshots.restoreFile",
         "title": "Restore File from Snapshot",
         "category": "Local Snapshots"
+      },
+      {
+        "command": "local-snapshots.diffWithGit",
+        "title": "Git Diff with Snapshot version",
+        "category": "Local Snapshots",
+        "icon": "$(git-compare)"
       },
       {
         "command": "local-snapshots.snapshotFile",
@@ -357,7 +380,8 @@
     "lint": "eslint src",
     "test": "vscode-test",
     "prebuild": "node scripts/copy-codicons.js",
-    "test-mcp": "node scripts/test-mcp-server.js"
+    "test-mcp": "node scripts/test-mcp-server.js",
+    "vsix": "npm run compile && npx vsce package"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
@@ -372,6 +396,7 @@
     "eslint": "^8.54.0",
     "ts-loader": "^9.5.1",
     "typescript": "^5.3.2",
+    "@vscode/vsce": "^3.2.1",
     "webpack": "^5.89.0",
     "webpack-cli": "^5.1.4"
   },

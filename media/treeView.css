@@ -208,7 +208,8 @@ body {
 	}
 }
 
-.restore-button {
+.restore-button,
+.git-diff-button {
 	display: flex;
 	align-items: center;
 	gap: var(--spacing-xs);
@@ -223,9 +224,19 @@ body {
 	transition: all var(--transition-duration) ease;
 }
 
-.restore-button:hover:not(:disabled) {
+.restore-button:hover:not(:disabled),
+.git-diff-button:hover {
 	background: var(--vscode-button-hoverBackground);
 	transform: translateY(-1px);
+}
+
+.git-diff-button {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.git-diff-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .restore-button:disabled {
@@ -242,11 +253,13 @@ body {
 	z-index: 5;
 }
 
-.tree-item .restore-button {
+.tree-item .restore-button,
+.tree-item .git-diff-button {
 	display: none;
 }
 
-.tree-item:hover .restore-button {
+.tree-item:hover .restore-button,
+.tree-item:hover .git-diff-button {
 	display: flex;
 }
 

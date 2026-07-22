@@ -63,6 +63,13 @@ export class SnapshotTreeWebviewProvider {
 						await this.notificationManager.showErrorMessage(`Failed to restore file: ${message.filePath}`);
 					}
 					break;
+				case 'diffWithGit':
+					try {
+						await vscode.commands.executeCommand('local-snapshots.diffWithGit', this.snapshotName, this.timestamp, message.filePath);
+					} catch (error) {
+						await this.notificationManager.showErrorMessage(`Failed to open Git Diff: ${error}`);
+					}
+					break;
 			}
 		});
 

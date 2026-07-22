@@ -3,6 +3,23 @@ import * as path from 'path';
 import { DiffFile } from '../types/interfaces';
 import { NotificationManager } from '../utils/NotificationManager';
 
+interface ShowDiffMessage {
+    type: 'showDiff';
+    snapshotName: string;
+    timestamp: number;
+    files: Array<{
+        path: string;
+        original: string;
+        modified: string;
+        status: string;
+    }>;
+    diffViewStyle: string;
+    enableTextWrapping: boolean;
+    enableLineLevelDiff: boolean;
+    enableCharacterLevelDiff: boolean;
+    characterDiffHighlightColor: string;
+}
+
 export class SnapshotDiffWebviewProvider {
     private _panel?: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
@@ -10,6 +27,8 @@ export class SnapshotDiffWebviewProvider {
     private _timestamp: number = 0;
     private notificationManager: NotificationManager = NotificationManager.getInstance();
     private _configChangeListener: vscode.Disposable | undefined;
+    private _webviewReady = false;
+    private _pendingShowDiffMessage?: ShowDiffMessage;
 
     constructor(
         extensionUri: vscode.Uri,
@@ -21,7 +40,7 @@ export class SnapshotDiffWebviewProvider {
         this._configChangeListener = vscode.workspace.onDidChangeConfiguration(e => {
             if (e.affectsConfiguration('localSnapshots.characterDiffHighlightColor') && this._panel) {
                 const config = vscode.workspace.getConfiguration('localSnapshots');
-                const characterDiffHighlightColor = config.get('characterDiffHighlightColor');
+                const characterDiffHighlightColor = config.get('characterDiffHighlightColor', '#FFD700');
 
                 // Send the updated color to the webview
                 this._panel.webview.postMessage({
@@ -69,11 +88,20 @@ export class SnapshotDiffWebviewProvider {
 
             this._panel.onDidDispose(() => {
                 this._panel = undefined;
+                this._webviewReady = false;
+                this._pendingShowDiffMessage = undefined;
             });
 
             // Handle messages from the webview
             this._panel.webview.onDidReceiveMessage(async message => {
                 switch (message.command) {
+                    case 'ready':
+                        this._webviewReady = true;
+                        if (this._pendingShowDiffMessage) {
+                            await this._panel?.webview.postMessage(this._pendingShowDiffMessage);
+                            this._pendingShowDiffMessage = undefined;
+                        }
+                        break;
                     case 'restoreFile':
                         try {
                             await this.onRestoreFile(message.filePath);
@@ -84,6 +112,13 @@ export class SnapshotDiffWebviewProvider {
                             });
                         } catch (error) {
                             await this.notificationManager.showErrorMessage(`Failed to restore file: ${message.filePath}`);
+                        }
+                        break;
+                    case 'diffWithGit':
+                        try {
+                            await vscode.commands.executeCommand('local-snapshots.diffWithGit', message.snapshotName, message.timestamp, message.filePath);
+                        } catch (error) {
+                            await this.notificationManager.showErrorMessage(`Failed to open Git Diff: ${error}`);
                         }
                         break;
                     case 'toggleTextWrapping':
@@ -125,7 +160,12 @@ export class SnapshotDiffWebviewProvider {
                 }
             });
 
-            this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
+            const initialCharacterDiffHighlightColor = config.get('characterDiffHighlightColor', '#FFD700');
+            this._panel.webview.html = this._getHtmlForWebview(
+                this._panel.webview,
+                initialCharacterDiffHighlightColor
+            );
+            this._webviewReady = false;
         }
 
         // Convert the files to a format suitable for the webview
@@ -139,12 +179,13 @@ export class SnapshotDiffWebviewProvider {
 
         // Make sure we're sending the character diff highlight color
         // This ensures the diff view always has the current color from settings
-        const currentCharacterDiffHighlightColor = config.get('characterDiffHighlightColor');
+        const currentCharacterDiffHighlightColor = config.get('characterDiffHighlightColor', '#FFD700');
 
         // Send the diff data to the webview
-        await this._panel.webview.postMessage({
+        await this._postShowDiffMessage({
             type: 'showDiff',
             snapshotName,
+            timestamp,
             files: diffData,
             diffViewStyle,
             enableTextWrapping,
@@ -154,13 +195,38 @@ export class SnapshotDiffWebviewProvider {
         });
     }
 
-    private _getHtmlForWebview(webview: vscode.Webview): string {
+    private async _postShowDiffMessage(message: ShowDiffMessage): Promise<void> {
+        if (!this._panel) {
+            return;
+        }
+
+        if (this._webviewReady) {
+            await this._panel.webview.postMessage(message);
+            return;
+        }
+
+        this._pendingShowDiffMessage = message;
+    }
+
+    private _getHtmlForWebview(webview: vscode.Webview, characterDiffHighlightColor: string): string {
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'media', 'diffView.js')
         );
 
         const colorPickerScriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'media', 'colorPicker.js')
+        );
+
+        const toggleUtilsScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'diffViewToggleUtils.js')
+        );
+
+        const overviewRulerUtilsScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'diffViewOverviewRulerUtils.js')
+        );
+
+        const highlightUtilsScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'diffViewHighlightUtils.js')
         );
 
         const styleUri = webview.asWebviewUri(
@@ -230,14 +296,17 @@ export class SnapshotDiffWebviewProvider {
                         <button class="search-nav-button" id="clear-search" title="Clear search"></button>
                     </div>
                 </div>
-                <div class="controls-right">
+                <div class="controls-right action-group">
                     <button class="global-control restore-all" title="Restore All Files">
                         <span class="codicon codicon-debug-restart"></span>
-                        <span>Restore All</span>
+                        <span>Restore<br>All</span>
                     </button>
                 </div>
             </div>
-            <div id="files-list" class="files-list"></div>
+            <div class="diff-view-content">
+                <div id="files-list" class="files-list"></div>
+                <div id="diff-overview-ruler" class="diff-overview-ruler"></div>
+            </div>
 
             <template id="file-template">
                 <div class="file-group">
@@ -256,6 +325,10 @@ export class SnapshotDiffWebviewProvider {
                                 <span class="codicon codicon-debug-restart"></span>
                                 <span>Restore</span>
                             </button>
+                            <button class="git-diff-button" title="Open in external Git Diff tool">
+                                <span class="codicon codicon-git-compare"></span>
+                                <span>Git Diff</span>
+                            </button>
                             <div class="collapse-indicator" data-tooltip="Click to collapse">
                                 <span class="codicon codicon-chevron-down collapse-icon"></span>
                             </div>
@@ -265,7 +338,13 @@ export class SnapshotDiffWebviewProvider {
                 </div>
             </template>
         </div>
+        <script nonce="${nonce}">
+            window.__INITIAL_CHARACTER_DIFF_HIGHLIGHT_COLOR__ = ${JSON.stringify(characterDiffHighlightColor)};
+        </script>
         <script nonce="${nonce}" src="${colorPickerScriptUri}"></script>
+        <script nonce="${nonce}" src="${toggleUtilsScriptUri}"></script>
+        <script nonce="${nonce}" src="${highlightUtilsScriptUri}"></script>
+        <script nonce="${nonce}" src="${overviewRulerUtilsScriptUri}"></script>
         <script nonce="${nonce}" src="${scriptUri}"></script>
     </body>
     </html>`;

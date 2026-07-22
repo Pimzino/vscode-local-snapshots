@@ -115,6 +115,16 @@ export class ConfigurationManager {
   }
 
   public get customIgnorePatterns(): string[] {
-    return this.get('customIgnorePatterns', []);
+    const patterns = this.get<(string | { pattern: string, fromGitignore?: boolean })[]>('customIgnorePatterns', []);
+
+    // Convert any object patterns to strings
+    return patterns.map(pattern => {
+      if (typeof pattern === 'string') {
+        return pattern;
+      } else if (pattern && typeof pattern === 'object' && pattern.pattern) {
+        return pattern.pattern;
+      }
+      return '';
+    }).filter(pattern => pattern !== '');
   }
 }

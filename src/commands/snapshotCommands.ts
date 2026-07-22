@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import { exec, spawn } from 'child_process';
 import { SnapshotManager } from '../managers/SnapshotManager';
 import { NotificationManager } from '../utils/NotificationManager';
 
@@ -184,6 +187,80 @@ export function registerSnapshotCommands(
 			);
 
 			await notificationManager.showInformationMessage(`Added "${pattern}" to ignore patterns`);
+		}),
+
+		vscode.commands.registerCommand('local-snapshots.diffWithGit', async (snapshotName: string, timestamp: number, filePath: string) => {
+			const snapshots = snapshotManager.getSnapshots();
+			const snapshot = snapshots.find(s => s.name === snapshotName && s.timestamp === timestamp);
+			if (!snapshot) {
+				await notificationManager.showErrorMessage('Snapshot not found');
+				return;
+			}
+
+			const fileSnapshot = snapshot.files.find(f => f.relativePath === filePath);
+			if (!fileSnapshot) {
+				await notificationManager.showErrorMessage('File not found in snapshot');
+				return;
+			}
+
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			if (!workspaceFolders) {
+				await notificationManager.showErrorMessage('No workspace folder is open');
+				return;
+			}
+
+			// Find the actual file on disk
+			let currentFileUri: vscode.Uri | undefined;
+			for (const folder of workspaceFolders) {
+				const fullPath = path.join(folder.uri.fsPath, filePath);
+				if (fs.existsSync(fullPath)) {
+					currentFileUri = vscode.Uri.file(fullPath);
+					break;
+				}
+			}
+
+			if (!currentFileUri) {
+				await notificationManager.showErrorMessage('Current file not found on disk');
+				return;
+			}
+
+			// Create a temporary file for the snapshot version
+			const tmpDir = os.tmpdir();
+			const fileName = path.basename(filePath);
+			const snapshotTmpPath = path.join(tmpDir, `snapshot_${timestamp}_${fileName}`);
+			
+			try {
+				fs.writeFileSync(snapshotTmpPath, fileSnapshot.content);
+
+				// Run git difftool
+				// We use -y to skip the prompt and --no-index because the snapshot version isn't necessarily in git
+				const child = spawn('git', ['difftool', '-y', '--no-index', snapshotTmpPath, currentFileUri.fsPath], {
+					detached: true,
+					stdio: 'ignore'
+				});
+
+				child.on('error', (err) => {
+					console.error('Failed to start git difftool:', err);
+					notificationManager.showErrorMessage(`Failed to start Git Diff: ${err.message}`);
+					
+					// Cleanup if it failed to start
+					if (fs.existsSync(snapshotTmpPath)) {
+						try { fs.unlinkSync(snapshotTmpPath); } catch (e) {}
+					}
+				});
+
+				child.on('exit', (code) => {
+					console.log('git difftool process exited with code:', code);
+					// Cleanup when the tool is closed
+					if (fs.existsSync(snapshotTmpPath)) {
+						try { fs.unlinkSync(snapshotTmpPath); } catch (e) {}
+					}
+				});
+
+				child.unref();
+			} catch (error) {
+				await notificationManager.showErrorMessage('Failed to create temporary file for diff: ' + (error instanceof Error ? error.message : 'Unknown error'));
+			}
 		})
 	];
 }

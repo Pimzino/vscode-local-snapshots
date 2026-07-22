@@ -1,10 +1,24 @@
 {
+	"include": [
+		"src/**/*"
+	],
+	"exclude": [
+		"node_modules",
+		".vscode-test"
+	],
+	"watchOptions": {
+		"excludeDirectories": [
+			"**/.vscode-test",
+			"**/node_modules"
+		]
+	},
 	"compilerOptions": {
 		"forceConsistentCasingInFileNames": true,
 		"module": "Node16",
 		"target": "ES2022",
 		"lib": [
-			"ES2022"
+			"ES2022",
+			"dom"
 		],
 		"sourceMap": true,
 		"rootDir": "src",

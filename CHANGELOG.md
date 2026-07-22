@@ -2,6 +2,28 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.23] - 2026-07-21
+
+### Added
+- Git Diff with Snapshot version command to compare a snapshot file against the current workspace file using your configured Git difftool
+- In-diff search with match navigation (Ctrl+F) across file names and diff content
+- Overview ruler in the diff view showing change locations along the scrollable file list
+- Sidebar icon for the Local Snapshots view
+- `npm run vsix` script for packaging the extension locally
+- Unit tests for diff view utilities (toggle, highlight, overview ruler, search with text wrap) and extension activation
+
+### Improved
+- Multi-file snapshot diff performance with metadata-based unchanged file skipping, batched file reads, and event-loop yielding for better UI responsiveness
+- Diff view now reads unsaved editor buffer content when comparing open files
+- Diff view webview ready handshake to prevent race conditions when loading initial diff data
+- Custom ignore patterns schema now supports object entries with `fromGitignore` metadata
+- Extracted diff view logic into reusable utility modules (`diffViewToggleUtils`, `diffViewHighlightUtils`, `diffViewOverviewRulerUtils`)
+
+### Fixed
+- Character diff highlight color now falls back to a default when the setting is unset
+- Search highlights preserve text wrapping on wrapped diff lines
+- Ignore pattern add/remove correctly handles both string and object pattern formats
+
 ## [0.0.22] - 2025-12-21
 
 ### Fixed
