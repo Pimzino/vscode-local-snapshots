@@ -242,6 +242,9 @@ body {
     gap: var(--spacing-sm);
     flex: 1;
     font-weight: 500;
+    -webkit-user-select: text;
+    user-select: text;
+    cursor: text;
 }
 
 .file-path .codicon {
@@ -1023,6 +1026,18 @@ body {
     min-height: 2px;
     z-index: 91;
     opacity: 0.8;
+}
+
+.diff-overview-viewport {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    z-index: 92;
+    pointer-events: none;
+    background-color: var(--vscode-scrollbarSlider-background);
+    opacity: 0.35;
+    border: 1px solid var(--vscode-scrollbarSlider-hoverBackground);
+    box-sizing: border-box;
 }
 
 .file-status {

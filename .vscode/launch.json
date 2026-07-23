@@ -29,6 +29,19 @@
 				"${workspaceFolder}/out/test/**/*.js"
 			],
 			"testConfiguration": "${workspaceFolder}/.vscode-test.mjs"
+		},
+		{
+			"name": "Run Extension (Profile)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--inspect-extensions=9339"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
+			"preLaunchTask": "${defaultBuildTask}"
 		}
 	]
 }

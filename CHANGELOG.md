@@ -2,6 +2,28 @@
 
 All notable changes to the "Local Snapshots" extension will be documented in this file.
 
+## [0.0.24] - 2026-07-22
+
+### Added
+- Run Performance Diagnostics command to generate a detailed performance report in the Output panel
+- Overview ruler viewport indicator showing the current scroll position in the diff view
+- Copy file path support in the diff view (select and copy from file headers)
+- `diffFileUtils` and `diffViewClipboardUtils` modules for shared diff view behavior
+- Media JavaScript syntax check (`check:media`) integrated into compile and package scripts
+- Separate performance test suite (`test:perf`) and extension profiling launch configuration
+- Unit tests for diff file path sorting, clipboard utilities, overview ruler layout, and performance diagnostics
+
+### Improved
+- Overview ruler marker accuracy with layout-aware height measurement, deferred layout retry, and marker clamping
+- Diff and tree views reveal the existing panel when reopening the same snapshot instead of rebuilding
+- Concurrent diff and tree preparation guarded to prevent duplicate work
+- Diff files sorted alphabetically with natural numeric ordering (case-insensitive)
+- Diff view file groups start collapsed by default for easier navigation in large snapshots
+
+### Fixed
+- Overview ruler markers stay aligned with the scrollbar after expand/collapse animations
+- Tree view preparation state is always cleaned up via a `finally` block
+
 ## [0.0.23] - 2026-07-21
 
 ### Added

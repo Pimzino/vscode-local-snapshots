@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { DiffFile } from '../types/interfaces';
 import { NotificationManager } from '../utils/NotificationManager';
+import { sortDiffFilesByPath } from '../utils/diffFileUtils';
 
 interface ShowDiffMessage {
     type: 'showDiff';
@@ -57,6 +57,16 @@ export class SnapshotDiffWebviewProvider {
 
     public get timestamp(): number {
         return this._timestamp;
+    }
+
+    public isShowingSnapshot(snapshotName: string, timestamp: number): boolean {
+        return this._panel !== undefined
+            && this._snapshotName === snapshotName
+            && this._timestamp === timestamp;
+    }
+
+    public reveal(): void {
+        this._panel?.reveal(vscode.ViewColumn.One);
     }
 
     public async showDiff(files: DiffFile[], snapshotName: string, timestamp: number) {
@@ -157,6 +167,13 @@ export class SnapshotDiffWebviewProvider {
                             await this.notificationManager.showErrorMessage(`Failed to update highlight color setting: ${error}`);
                         }
                         break;
+                    case 'copyFilePath':
+                        try {
+                            await vscode.env.clipboard.writeText(message.filePath);
+                        } catch (error) {
+                            await this.notificationManager.showErrorMessage(`Failed to copy file path: ${error}`);
+                        }
+                        break;
                 }
             });
 
@@ -168,8 +185,10 @@ export class SnapshotDiffWebviewProvider {
             this._webviewReady = false;
         }
 
+        const sortedFiles = sortDiffFilesByPath(files);
+
         // Convert the files to a format suitable for the webview
-        const diffData = files.map(file => ({
+        const diffData = sortedFiles.map(file => ({
             path: file.relativePath,
             original: file.original || '',
             modified: file.modified || '',
@@ -227,6 +246,10 @@ export class SnapshotDiffWebviewProvider {
 
         const highlightUtilsScriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'media', 'diffViewHighlightUtils.js')
+        );
+
+        const clipboardUtilsScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'diffViewClipboardUtils.js')
         );
 
         const styleUri = webview.asWebviewUri(
@@ -310,7 +333,7 @@ export class SnapshotDiffWebviewProvider {
 
             <template id="file-template">
                 <div class="file-group">
-                    <div class="file-header" title="Click anywhere to expand/collapse">
+                    <div class="file-header collapsed" title="Click anywhere to expand/collapse">
                         <div class="file-path">
                             <span class="codicon codicon-file"></span>
                             <span class="path"></span>
@@ -334,7 +357,7 @@ export class SnapshotDiffWebviewProvider {
                             </div>
                         </div>
                     </div>
-                    <div class="diff-content expanded"></div>
+                    <div class="diff-content"></div>
                 </div>
             </template>
         </div>
@@ -345,6 +368,7 @@ export class SnapshotDiffWebviewProvider {
         <script nonce="${nonce}" src="${toggleUtilsScriptUri}"></script>
         <script nonce="${nonce}" src="${highlightUtilsScriptUri}"></script>
         <script nonce="${nonce}" src="${overviewRulerUtilsScriptUri}"></script>
+        <script nonce="${nonce}" src="${clipboardUtilsScriptUri}"></script>
         <script nonce="${nonce}" src="${scriptUri}"></script>
     </body>
     </html>`;

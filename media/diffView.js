@@ -48,12 +48,95 @@
             const containerRect = container.getBoundingClientRect();
             return lineRect.top - containerRect.top + container.scrollTop;
         },
+        getMeasuredFileGroupsBottom(container) {
+            let bottom = 0;
+
+            container.querySelectorAll('.file-group').forEach(group => {
+                if (!group || typeof /** @type {HTMLElement} */ (group).offsetHeight !== 'number') {
+                    return;
+                }
+
+                const groupElement = /** @type {HTMLElement} */ (group);
+
+                const header = group.querySelector('.file-header');
+                if (!header) {
+                    return;
+                }
+
+                const top = overviewRulerUtils.getLineOffsetWithinContainer(header, container);
+                bottom = Math.max(bottom, top + groupElement.offsetHeight);
+            });
+
+            return bottom;
+        },
         calculateOverviewMarkerPercent(lineOffset, totalHeight) {
             if (totalHeight === 0) {
                 return 0;
             }
 
             return (lineOffset / totalHeight) * 100;
+        },
+        getOverviewRulerBounds(container) {
+            const expandedContents = container.querySelectorAll('.file-group > .diff-content.expanded');
+            if (expandedContents.length === 0) {
+                const measuredBottom = overviewRulerUtils.getMeasuredFileGroupsBottom(container);
+                const scrollHeight = container.scrollHeight;
+                const bottom = measuredBottom > 0 ? measuredBottom : scrollHeight;
+                return { top: 0, height: bottom, bottom };
+            }
+
+            let top = Infinity;
+            let bottom = 0;
+
+            expandedContents.forEach(content => {
+                const contentElement = /** @type {HTMLElement} */ (content);
+                if (!contentElement || typeof contentElement.offsetHeight !== 'number') {
+                    return;
+                }
+
+                const contentTop = overviewRulerUtils.getLineOffsetWithinContainer(content, container);
+                const contentBottom = contentTop + contentElement.offsetHeight;
+                top = Math.min(top, contentTop);
+                bottom = Math.max(bottom, contentBottom);
+            });
+
+            if (top === Infinity) {
+                const measuredBottom = overviewRulerUtils.getMeasuredFileGroupsBottom(container);
+                const scrollHeight = container.scrollHeight;
+                const resolvedBottom = measuredBottom > 0 ? measuredBottom : scrollHeight;
+                return { top: 0, height: resolvedBottom, bottom: resolvedBottom };
+            }
+
+            const height = Math.max(0, bottom - top);
+            return { top, height, bottom };
+        },
+        getOverviewRulerTotalHeight(container) {
+            const measuredBottom = overviewRulerUtils.getMeasuredFileGroupsBottom(container);
+            const bounds = overviewRulerUtils.getOverviewRulerBounds(container);
+            const layoutHeight = Math.max(measuredBottom, bounds.bottom);
+            const scrollHeight = container.scrollHeight;
+
+            if (layoutHeight === 0) {
+                return scrollHeight;
+            }
+
+            if (scrollHeight < layoutHeight * 0.99 || scrollHeight > layoutHeight * 1.01) {
+                return layoutHeight;
+            }
+
+            return scrollHeight;
+        },
+        getOverviewRulerScale(container) {
+            const scrollHeight = container.scrollHeight;
+            const totalHeight = scrollHeight > 0
+                ? scrollHeight
+                : overviewRulerUtils.getOverviewRulerTotalHeight(container);
+
+            return {
+                mode: 'document',
+                offsetTop: 0,
+                totalHeight,
+            };
         },
         lineHasDiffChanges(line) {
             return (
@@ -100,6 +183,81 @@
 
             const button = container.querySelector(selector);
             toggleUtils.syncToggleButtonState(button, enabled);
+        },
+    };
+
+    const clipboardUtils = window.DiffViewClipboardUtils || {
+        getFilePathFromHeader(header) {
+            if (!header) {
+                return null;
+            }
+
+            const fromAttribute = header.getAttribute('data-file-path');
+            if (fromAttribute) {
+                return fromAttribute;
+            }
+
+            const pathElement = header.querySelector('.file-path .path');
+            const fromText = pathElement?.textContent?.trim();
+            return fromText || null;
+        },
+        getFileHeaderFromCopyTarget(target) {
+            if (!target || typeof target !== 'object' || typeof /** @type {{ closest?: unknown }} */ (target).closest !== 'function') {
+                return null;
+            }
+
+            const element = /** @type {Element} */ (target);
+            const filePath = element.closest('.file-path');
+            if (filePath) {
+                const header = filePath.closest('.file-header');
+                return header instanceof HTMLElement ? header : null;
+            }
+
+            const header = element.closest('.file-header');
+            if (!header || element.closest('.actions')) {
+                return null;
+            }
+
+            return header instanceof HTMLElement ? header : null;
+        },
+        handleFilePathCopyEvent(event, header) {
+            const filePath = clipboardUtils.getFilePathFromHeader(header);
+            if (!filePath) {
+                return {
+                    handled: false,
+                    filePath: null,
+                    needsExtensionClipboard: false,
+                };
+            }
+
+            event.preventDefault();
+
+            if (event.clipboardData) {
+                event.clipboardData.setData('text/plain', filePath);
+            }
+
+            return {
+                handled: true,
+                filePath,
+                needsExtensionClipboard: true,
+            };
+        },
+        selectFilePathText(header) {
+            const pathElement = header?.querySelector('.file-path .path');
+            if (!(pathElement instanceof HTMLElement)) {
+                return false;
+            }
+
+            const selection = window.getSelection?.();
+            if (!selection) {
+                return false;
+            }
+
+            const range = document.createRange();
+            range.selectNodeContents(pathElement);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            return true;
         },
     };
 
@@ -163,6 +321,8 @@
             this.textWrapToggle = null;
             /** @type {HTMLButtonElement | null} */
             this.lineLevelDiffToggle = null;
+            /** @type {number} */
+            this.overviewRulerGeneration = 0;
 
             if (!this.container || !this.filesContainer || !this.fileTemplate) {
                 console.error('Required DOM elements not found');
@@ -266,6 +426,40 @@
             window.addEventListener('resize', () => {
                 this.updateOverviewRuler();
             });
+
+            if (this.filesContainer && !this._overviewRulerScrollBound) {
+                this.filesContainer.addEventListener('scroll', () => {
+                    this.updateOverviewViewport();
+                }, { passive: true });
+                this._overviewRulerScrollBound = true;
+            }
+
+            if (!this._filePathCopyBound) {
+                document.addEventListener('contextmenu', (e) => {
+                    const header = clipboardUtils.getFileHeaderFromCopyTarget(e.target);
+                    if (!header || !clipboardUtils.selectFilePathText) {
+                        return;
+                    }
+
+                    clipboardUtils.selectFilePathText(header);
+                }, true);
+
+                document.addEventListener('copy', (e) => {
+                    const header = clipboardUtils.getFileHeaderFromCopyTarget(e.target);
+                    if (!header) {
+                        return;
+                    }
+
+                    const result = clipboardUtils.handleFilePathCopyEvent(e, header);
+                    if (result.handled && result.filePath) {
+                        vscode.postMessage({
+                            command: 'copyFilePath',
+                            filePath: result.filePath,
+                        });
+                    }
+                }, true);
+                this._filePathCopyBound = true;
+            }
 
             vscode.postMessage({ command: 'ready' });
         }
@@ -888,6 +1082,11 @@
                 return;
             }
 
+            files = [...files].sort((a, b) => a.path.localeCompare(b.path, undefined, {
+                sensitivity: 'base',
+                numeric: true,
+            }));
+
             // Store the current files for re-rendering when settings change
             this.currentFiles = files;
 
@@ -949,6 +1148,13 @@
                             isCollapsed ? 'Click to expand' : 'Click to collapse'
                         );
                         this.updateOverviewRuler();
+                        if (!isCollapsed) {
+                            const onExpandAnimationEnd = () => {
+                                content.removeEventListener('animationend', onExpandAnimationEnd);
+                                this.updateOverviewRuler();
+                            };
+                            content.addEventListener('animationend', onExpandAnimationEnd);
+                        }
                     }
                 });
 
@@ -1011,19 +1217,59 @@
         }
 
         /**
-         * Updates the overview ruler with markers for all changes
+         * Updates the viewport highlight on the overview ruler using scrollHeight
+         * so it aligns with the native scrollbar thumb.
          */
-        updateOverviewRuler() {
+        updateOverviewViewport() {
             if (!this.overviewRuler || !this.filesContainer) {
                 return;
             }
 
+            const scrollHeight = this.filesContainer.scrollHeight;
+            if (scrollHeight <= 0) {
+                return;
+            }
+
+            let viewport = this.overviewRuler.querySelector('.diff-overview-viewport');
+            if (!viewport) {
+                viewport = document.createElement('div');
+                viewport.className = 'diff-overview-viewport';
+                this.overviewRuler.appendChild(viewport);
+            }
+
+            const scrollTop = this.filesContainer.scrollTop;
+            const clientHeight = this.filesContainer.clientHeight;
+            const topPercent = (scrollTop / scrollHeight) * 100;
+            const heightPercent = (clientHeight / scrollHeight) * 100;
+
+            viewport.style.top = `${Math.max(0, Math.min(100, topPercent))}%`;
+            viewport.style.height = `${Math.max(0, Math.min(100 - topPercent, heightPercent))}%`;
+            viewport.style.display = heightPercent > 0 ? 'block' : 'none';
+        }
+
+        /**
+         * Updates the overview ruler with markers for all changes
+         */
+        updateOverviewRuler(allowDeferredRetry = true) {
+            if (!this.overviewRuler || !this.filesContainer) {
+                return;
+            }
+
+            const generation = ++this.overviewRulerGeneration;
             this.overviewRuler.innerHTML = '';
+
+            // Force layout so scroll/content measurements are current.
+            void this.filesContainer.offsetHeight;
             
             // Get all diff lines that have changes - check both for line-level classes and char-diff spans
             const allLines = this.filesContainer.querySelectorAll('.diff-line, .diff-line-horizontal');
-            const totalHeight = this.filesContainer.scrollHeight;
-            if (totalHeight === 0) return;
+            const scrollHeight = this.filesContainer.scrollHeight;
+            const totalHeight = scrollHeight > 0
+                ? scrollHeight
+                : overviewRulerUtils.getOverviewRulerTotalHeight(this.filesContainer);
+            if (totalHeight === 0) {
+                return;
+            }
 
             const highlightColor = this.getHighlightColor();
             const fragment = document.createDocumentFragment();
@@ -1044,12 +1290,17 @@
                         /** @type {Element} */ (line),
                         this.filesContainer
                     );
+                    if (lineOffset < 0 || lineOffset > totalHeight) {
+                        return;
+                    }
+
                     const percent = overviewRulerUtils.calculateOverviewMarkerPercent(
                         lineOffset,
                         totalHeight
                     );
+                    const clampedPercent = Math.max(0, Math.min(100, percent));
                     
-                    marker.style.top = `${percent}%`;
+                    marker.style.top = `${clampedPercent}%`;
                     marker.style.backgroundColor = highlightUtils.getOverviewMarkerColor({
                         lineLevelDiffEnabled: this.lineLevelDiffEnabled,
                         isAdded: Boolean(isAdded),
@@ -1059,8 +1310,32 @@
                     fragment.appendChild(marker);
                 }
             });
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    if (generation !== this.overviewRulerGeneration) {
+                        return;
+                    }
+
+                    if (!this.overviewRuler || !this.filesContainer) {
+                        return;
+                    }
+
+                    const deferredScrollHeight = this.filesContainer.scrollHeight;
+                    const deferredTotalHeight = deferredScrollHeight > 0
+                        ? deferredScrollHeight
+                        : overviewRulerUtils.getOverviewRulerTotalHeight(this.filesContainer);
+                    const heightChanged = Math.abs(deferredScrollHeight - scrollHeight) > 10
+                        || Math.abs(deferredTotalHeight - totalHeight) > 10;
+
+                    if (heightChanged && allowDeferredRetry) {
+                        this.updateOverviewRuler(false);
+                    }
+                });
+            });
             
             this.overviewRuler.appendChild(fragment);
+            this.updateOverviewViewport();
         }
 
 

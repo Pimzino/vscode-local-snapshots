@@ -6,6 +6,8 @@ import { SnapshotDiffWebviewProvider } from '../views/SnapshotDiffWebviewProvide
 import { SnapshotTreeWebviewProvider } from '../views/SnapshotTreeWebviewProvider';
 import { NotificationManager } from '../utils/NotificationManager';
 import { Logger } from '../utils/Logger';
+import { PerformanceDiagnostics, PerformanceDiagnosticsOptions } from '../utils/PerformanceDiagnostics';
+import { sortDiffFilesByPath } from '../utils/diffFileUtils';
 import ignore from 'ignore';
 
 // Constants for file processing
@@ -21,6 +23,8 @@ export class SnapshotManager {
   private documentStates: Map<string, { content: string, version: number }> = new Map();
   private pendingChanges: Set<string> = new Set();
   private diffProvider?: SnapshotDiffWebviewProvider;
+  private activeDiffPreparations = new Set<string>();
+  private activeTreePreparations = new Set<string>();
   private treeProvider?: SnapshotTreeWebviewProvider;
   private timedSnapshotInterval?: NodeJS.Timeout;
   private statusBarItem: vscode.StatusBarItem;
@@ -518,6 +522,35 @@ export class SnapshotManager {
     const workspaceFolder = workspaceFolders[0].uri.fsPath;
     const key = `${this.WORKSPACE_SNAPSHOTS_KEY}-${workspaceFolder}`;
     return this.context.globalState.get<Snapshot[]>(key, []);
+  }
+
+  public getRuntimeDiagnostics(): {
+    documentStatesCount: number;
+    pendingChangesCount: number;
+    activeDiffPreparations: number;
+    activeTreePreparations: number;
+    gitignoreCacheSize: number;
+  } {
+    return {
+      documentStatesCount: this.documentStates.size,
+      pendingChangesCount: this.pendingChanges.size,
+      activeDiffPreparations: this.activeDiffPreparations.size,
+      activeTreePreparations: this.activeTreePreparations.size,
+      gitignoreCacheSize: this.gitignoreCache.size
+    };
+  }
+
+  public async benchmarkHasChangedFiles(): Promise<{ durationMs: number; changed: boolean }> {
+    const start = Date.now();
+    const changed = await this.hasChangedFiles();
+    return {
+      durationMs: Date.now() - start,
+      changed
+    };
+  }
+
+  public async runPerformanceDiagnostics(options?: PerformanceDiagnosticsOptions): Promise<string> {
+    return PerformanceDiagnostics.run(this, options);
   }
 
   private async saveSnapshots(snapshots: Snapshot[]): Promise<void> {
@@ -1613,9 +1646,30 @@ export class SnapshotManager {
 
 
 
+  private getSnapshotKey(snapshotName: string, timestamp: number): string {
+    return `${snapshotName}:${timestamp}`;
+  }
+
   async showDiff(snapshotName: string, timestamp: number): Promise<void> {
+    const snapshotKey = this.getSnapshotKey(snapshotName, timestamp);
+
+    if (this.diffProvider?.isShowingSnapshot(snapshotName, timestamp)) {
+      this.diffProvider.reveal();
+      return;
+    }
+
+    if (this.activeDiffPreparations.has(snapshotKey)) {
+      await this.notificationManager.showInformationMessage(
+        'Diff view is already being prepared for this snapshot.'
+      );
+      return;
+    }
+
+    this.activeDiffPreparations.add(snapshotKey);
+
     let errorMessage: string | undefined;
 
+    try {
     const changedFiles = await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: 'Preparing Diff View...',
@@ -1834,11 +1888,31 @@ export class SnapshotManager {
     }
 
     if (this.diffProvider) {
-      await this.diffProvider.showDiff(changedFiles, snapshotName, timestamp);
+      const sortedChangedFiles = sortDiffFilesByPath(changedFiles);
+      await this.diffProvider.showDiff(sortedChangedFiles, snapshotName, timestamp);
+    }
+    } finally {
+      this.activeDiffPreparations.delete(snapshotKey);
     }
   }
 
   async showTree(snapshotName: string, timestamp: number): Promise<void> {
+    const snapshotKey = this.getSnapshotKey(snapshotName, timestamp);
+
+    if (this.treeProvider?.isShowingSnapshot(snapshotName, timestamp)) {
+      this.treeProvider.reveal();
+      return;
+    }
+
+    if (this.activeTreePreparations.has(snapshotKey)) {
+      await this.notificationManager.showInformationMessage(
+        'Tree view is already being prepared for this snapshot.'
+      );
+      return;
+    }
+
+    this.activeTreePreparations.add(snapshotKey);
+
     let files: FileSnapshot[] | null = null;
 
     try {
@@ -1857,14 +1931,15 @@ export class SnapshotManager {
           progress.report({ message: 'Building tree structure...' });
           return snapshot.files;
       });
+
+      if (files && this.treeProvider) {
+        await this.treeProvider.showTree(files, snapshotName, timestamp);
+      }
     } catch (error) {
         console.error('Failed to show tree view:', error);
         await this.notificationManager.showErrorMessage('Failed to show tree view');
-        return;
-    }
-
-    if (files && this.treeProvider) {
-        await this.treeProvider.showTree(files, snapshotName, timestamp);
+    } finally {
+      this.activeTreePreparations.delete(snapshotKey);
     }
   }
 

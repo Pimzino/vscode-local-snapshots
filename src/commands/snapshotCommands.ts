@@ -5,6 +5,8 @@ import * as os from 'os';
 import { exec, spawn } from 'child_process';
 import { SnapshotManager } from '../managers/SnapshotManager';
 import { NotificationManager } from '../utils/NotificationManager';
+import { Logger } from '../utils/Logger';
+import { PerformanceDiagnosticsOptions } from '../utils/PerformanceDiagnostics';
 
 export function registerSnapshotCommands(
 	context: vscode.ExtensionContext,
@@ -187,6 +189,26 @@ export function registerSnapshotCommands(
 			);
 
 			await notificationManager.showInformationMessage(`Added "${pattern}" to ignore patterns`);
+		}),
+
+		vscode.commands.registerCommand('local-snapshots.runPerformanceDiagnostics', async (options?: PerformanceDiagnosticsOptions) => {
+			const logger = Logger.getInstance();
+			try {
+				const report = await snapshotManager.runPerformanceDiagnostics(options);
+
+				if (!options?.silent) {
+					logger.show();
+					await notificationManager.showInformationMessage(
+						'Performance diagnostics complete. See Output > Local Snapshots for the full report.'
+					);
+				}
+				return report;
+			} catch (error) {
+				await notificationManager.showErrorMessage(
+					'Performance diagnostics failed: ' + (error instanceof Error ? error.message : 'Unknown error')
+				);
+				throw error;
+			}
 		}),
 
 		vscode.commands.registerCommand('local-snapshots.diffWithGit', async (snapshotName: string, timestamp: number, filePath: string) => {

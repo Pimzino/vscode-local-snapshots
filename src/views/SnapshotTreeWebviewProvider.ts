@@ -22,6 +22,16 @@ export class SnapshotTreeWebviewProvider {
 		return this.timestamp;
 	}
 
+	public isShowingSnapshot(snapshotName: string, timestamp: number): boolean {
+		return this.panel !== undefined
+			&& this.snapshotName === snapshotName
+			&& this.timestamp === timestamp;
+	}
+
+	public reveal(): void {
+		this.panel?.reveal(vscode.ViewColumn.One);
+	}
+
 	public async showTree(files: FileSnapshot[], snapshotName: string, timestamp: number): Promise<void> {
 		this.snapshotName = snapshotName;
 		this.timestamp = timestamp;

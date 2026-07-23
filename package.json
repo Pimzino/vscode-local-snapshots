@@ -2,7 +2,7 @@
   "name": "local-snapshots",
   "displayName": "Local Snapshots",
   "description": "Create and manage local snapshots of your workspace files",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "publisher": "CalculatedRisk",
   "license": "MIT",
   "repository": {
@@ -298,6 +298,12 @@
         "title": "Copy AI Safety Rules",
         "category": "Local Snapshots",
         "icon": "$(copy)"
+      },
+      {
+        "command": "local-snapshots.runPerformanceDiagnostics",
+        "title": "Run Performance Diagnostics",
+        "category": "Local Snapshots",
+        "icon": "$(pulse)"
       }
     ],
     "menus": {
@@ -371,14 +377,16 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
-    "compile": "webpack",
+    "compile": "webpack && npm run check:media",
     "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map",
+    "package": "webpack --mode production --devtool hidden-source-map && npm run check:media",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
+    "check:media": "node scripts/check-media-js.js",
     "test": "vscode-test",
+    "test:perf": "vscode-test --label performance",
     "prebuild": "node scripts/copy-codicons.js",
     "test-mcp": "node scripts/test-mcp-server.js",
     "vsix": "npm run compile && npx vsce package"
